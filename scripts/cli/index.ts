@@ -33,6 +33,7 @@ import { cmdDbMigrate } from './db';
 import { cmdStats } from './stats';
 import { cmdAnthropicStatus } from './anthropic';
 import { cmdCursorStatus, cmdImportCursorCsv } from './cursor';
+import { cmdBedrockStatus, cmdImportBedrockCsv, cmdBedrockUsers, cmdBedrockUsersMap } from './bedrock';
 import { cmdGitHubStatus, cmdGitHubSync, cmdGitHubCommits, cmdGitHubUsers, cmdGitHubUsersMap, cmdGitHubUsersSync, cmdGitHubCleanupMerges } from './github';
 import { cmdMappings, cmdMappingsSync, cmdMappingsFix } from './mappings';
 import { cmdSync, cmdBackfill, cmdGitHubBackfill, cmdBackfillComplete, cmdBackfillReset, cmdGaps } from './sync';
@@ -78,6 +79,12 @@ Commands:
                         Map a GitHub user ID to a work email
   import:cursor-csv <file>
                         Import Cursor usage from CSV export
+  import:bedrock-csv <file>
+                        Import Bedrock usage from CloudWatch CSV export
+  bedrock:status        Show Bedrock sync state
+  bedrock:users         List IAM users and their email mappings
+  bedrock:users:map <iam> <email>
+                        Map an IAM user to an email address
   fix:duplicates [--execute]
                         Fix duplicate usage records (dry-run by default)
   stats                 Show database statistics
@@ -245,6 +252,28 @@ async function main() {
           break;
         }
         await cmdImportCursorCsv(filePath);
+        break;
+      }
+      case 'import:bedrock-csv': {
+        const filePath = args[1];
+        if (!filePath) {
+          console.error('Error: Please specify a CSV file path');
+          console.error('Usage: npm run cli import:bedrock-csv <path-to-csv>');
+          break;
+        }
+        await cmdImportBedrockCsv(filePath);
+        break;
+      }
+      case 'bedrock:status':
+        await cmdBedrockStatus();
+        break;
+      case 'bedrock:users':
+        await cmdBedrockUsers();
+        break;
+      case 'bedrock:users:map': {
+        const iamUser = args[1];
+        const email = args[2];
+        await cmdBedrockUsersMap(iamUser, email);
         break;
       }
       case 'fix:duplicates': {

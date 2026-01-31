@@ -25,6 +25,19 @@ import {
   getGitHubUser,
   GitHubMappingResult,
 } from './github-mappings';
+import {
+  getBedrockSyncState,
+  updateBedrockSyncState,
+  resetBedrockBackfillComplete,
+  extractModelFromArn,
+  extractUserFromArn,
+  calculateBedrockCost,
+  parseBedrockLogEntry,
+  parseCsvMessage,
+  BedrockLogEntry,
+  BedrockUsageRecord,
+  SyncResult as BedrockResult,
+} from './bedrock';
 import { sql } from '@vercel/postgres';
 
 export interface FullSyncResult {
@@ -160,4 +173,16 @@ export {
   getGitHubUser,
 };
 
-export type { GitHubResult, GitHubPushEvent, GitHubMappingResult };
+export type { GitHubResult, GitHubPushEvent, GitHubMappingResult, BedrockResult, BedrockLogEntry, BedrockUsageRecord };
+
+// Bedrock exports
+export {
+  getBedrockSyncState,
+  updateBedrockSyncState,
+  resetBedrockBackfillComplete,
+  extractModelFromArn,
+  extractUserFromArn,
+  calculateBedrockCost,
+  parseBedrockLogEntry,
+  parseCsvMessage,
+};

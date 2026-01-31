@@ -108,11 +108,28 @@ export function normalizeModelName(model: string): string {
     normalized = normalized.replace(suffixMatch[0], '').trim();
   }
 
+  // Handle Bedrock model ID format with version suffix
+  // "claude-haiku-4-5-20251001-v1:0" → "haiku-4.5"
+  let match = normalized.match(/^claude-([a-z]+)-(\d+)-(\d+)-\d{8}-v\d+:\d+$/);
+  if (match) {
+    normalized = `${match[1]}-${match[2]}.${match[3]}`;
+  }
+
+  // "claude-sonnet-4-20250514-v1:0" → "sonnet-4"
+  if (!match) {
+    match = normalized.match(/^claude-([a-z]+)-(\d+)-\d{8}-v\d+:\d+$/);
+    if (match) {
+      normalized = `${match[1]}-${match[2]}`;
+    }
+  }
+
   // Handle full Anthropic model names with dates
   // "claude-3-5-haiku-20241022" → "haiku-3.5"
-  let match = normalized.match(/^claude-(\d+)-(\d+)-([a-z]+)-\d{8}$/);
-  if (match) {
-    normalized = `${match[3]}-${match[1]}.${match[2]}`;
+  if (!match) {
+    match = normalized.match(/^claude-(\d+)-(\d+)-([a-z]+)-\d{8}$/);
+    if (match) {
+      normalized = `${match[3]}-${match[1]}.${match[2]}`;
+    }
   }
 
   // "claude-sonnet-4-20250514" → "sonnet-4"
