@@ -62,6 +62,7 @@ interface UserSummary {
   totalCost: number;
   claudeCodeTokens: number;
   cursorTokens: number;
+  bedrockTokens: number;
   favoriteModel: string;
   lastActive: string;
 }

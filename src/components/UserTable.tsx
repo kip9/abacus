@@ -16,6 +16,7 @@ interface UserSummary {
   totalCost: number;
   claudeCodeTokens: number;
   cursorTokens: number;
+  bedrockTokens: number;
   favoriteModel: string;
   lastActive: string;
 }
@@ -25,6 +26,9 @@ function getToolBreakdownFromSummary(user: UserSummary) {
   const tools = [];
   if (user.claudeCodeTokens > 0) {
     tools.push({ tool: 'claude_code', value: Number(user.claudeCodeTokens) });
+  }
+  if (user.bedrockTokens > 0) {
+    tools.push({ tool: 'bedrock', value: Number(user.bedrockTokens) });
   }
   if (user.cursorTokens > 0) {
     tools.push({ tool: 'cursor', value: Number(user.cursorTokens) });
