@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState, useMemo } from 'react';
 import { formatTokens, formatCurrency, formatModelName } from '@/lib/utils';
 import { aggregateToWeekly } from '@/lib/dateUtils';
-import { getToolConfig, formatToolName, calculateToolBreakdown, type ToolBreakdown } from '@/lib/tools';
+import { getToolConfig, formatToolName, calculateToolBreakdown, TOOL_CONFIGS, type ToolBreakdown } from '@/lib/tools';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { AppLink } from '@/components/AppLink';
 import { Card } from '@/components/Card';
@@ -19,12 +19,13 @@ interface UserDetails {
     totalCost: number;
     claudeCodeTokens: number;
     cursorTokens: number;
+    bedrockTokens: number;
     lastActive: string;
     firstActive: string;
     daysActive?: number;
   };
   modelBreakdown: { model: string; tokens: number; cost: number; tool: string }[];
-  dailyUsage: { date: string; claudeCode: number; cursor: number }[];
+  dailyUsage: { date: string; claudeCode: number; cursor: number; bedrock: number }[];
   previousPeriod?: {
     totalTokens: number;
     totalCost: number;
@@ -242,21 +243,56 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
                     const displayData = isWeekly
                       ? aggregateToWeekly(details.dailyUsage)
                       : details.dailyUsage;
-                    const maxDaily = Math.max(...displayData.map(dd => Number(dd.claudeCode) + Number(dd.cursor)), 1);
+                    const maxDaily = Math.max(...displayData.map(dd => Number(dd.claudeCode) + Number(dd.cursor) + Number(dd.bedrock)), 1);
+                    const hasBedrock = displayData.some(d => Number(d.bedrock) > 0);
+                    const hasMultipleTools = hasBedrock || displayData.some(d => Number(d.cursor) > 0);
 
                     return (
                       <Card padding="md">
                         <SectionLabel margin="md">{isWeekly ? 'Weekly Activity' : 'Daily Activity'}</SectionLabel>
                         <div className="flex h-16 items-end gap-0.5">
                           {displayData.map((d) => {
-                            const total = Number(d.claudeCode) + Number(d.cursor);
+                            const cc = Number(d.claudeCode);
+                            const br = Number(d.bedrock);
+                            const cu = Number(d.cursor);
+                            const total = cc + br + cu;
                             const height = (total / maxDaily) * 100;
+
+                            if (!hasMultipleTools) {
+                              return (
+                                <div
+                                  key={d.date}
+                                  className="flex-1 rounded-t bg-gradient-to-t from-amber-500/60 to-amber-500"
+                                  style={{ height: `${Math.max(height, total > 0 ? 4 : 0)}%` }}
+                                />
+                              );
+                            }
+
                             return (
                               <div
                                 key={d.date}
-                                className="flex-1 rounded-t bg-gradient-to-t from-amber-500/60 to-amber-500"
+                                className="flex-1 flex flex-col justify-end"
                                 style={{ height: `${Math.max(height, total > 0 ? 4 : 0)}%` }}
-                              />
+                              >
+                                {cc > 0 && (
+                                  <div
+                                    className={`w-full ${TOOL_CONFIGS.claude_code.bgChart} rounded-t`}
+                                    style={{ flex: cc }}
+                                  />
+                                )}
+                                {br > 0 && (
+                                  <div
+                                    className={`w-full ${TOOL_CONFIGS.bedrock.bgChart}`}
+                                    style={{ flex: br }}
+                                  />
+                                )}
+                                {cu > 0 && (
+                                  <div
+                                    className={`w-full ${TOOL_CONFIGS.cursor.bgChart}`}
+                                    style={{ flex: cu }}
+                                  />
+                                )}
+                              </div>
                             );
                           })}
                         </div>
