@@ -1,3 +1,4 @@
+import Papa from 'papaparse';
 import { db, syncState } from '../db';
 import { eq } from 'drizzle-orm';
 import { normalizeModelName } from '../utils';
@@ -21,11 +22,15 @@ export interface BedrockLogEntry {
     arn: string;
   };
   input: {
+    inputContentType?: string;
+    inputBodyJson?: Record<string, unknown>;
     inputTokenCount: number;
     cacheReadInputTokenCount?: number;
     cacheWriteInputTokenCount?: number;
   };
   output: {
+    outputContentType?: string;
+    outputBodyJson?: Record<string, unknown>;
     outputTokenCount: number;
   };
 }
@@ -304,4 +309,95 @@ export function parseCsvMessage(messageJson: string): BedrockLogEntry {
 
   // Parse the JSON
   return JSON.parse(cleaned) as BedrockLogEntry;
+}
+
+/**
+ * Escape literal control characters inside JSON string values.
+ * CloudWatch CSV exports with body logging can contain literal newlines,
+ * tabs, etc. inside JSON string values (e.g., in inputBodyJson content).
+ * These are invalid JSON and must be escaped before parsing.
+ */
+function escapeJsonControlChars(json: string): string {
+  // Replace control characters that appear inside JSON strings.
+  // We walk the string tracking whether we're inside a JSON string literal.
+  let result = '';
+  let inString = false;
+  let i = 0;
+  while (i < json.length) {
+    const ch = json[i];
+    if (inString) {
+      if (ch === '\\') {
+        const next = json[i + 1];
+        // Only pass through valid JSON escape sequences
+        if (next && '"\\\/bfnrtu'.includes(next)) {
+          result += ch + next;
+          i += 2;
+          continue;
+        }
+        // Lone backslash or invalid escape — escape the backslash itself
+        result += '\\\\';
+        i++;
+        continue;
+      }
+      if (ch === '"') {
+        inString = false;
+        result += ch;
+      } else if (ch === '\n') {
+        result += '\\n';
+      } else if (ch === '\r') {
+        result += '\\r';
+      } else if (ch === '\t') {
+        result += '\\t';
+      } else {
+        result += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inString = true;
+      }
+      result += ch;
+    }
+    i++;
+  }
+  return result;
+}
+
+/**
+ * Parse a CloudWatch CSV export into BedrockLogEntry objects.
+ * Uses papaparse to correctly handle multi-line fields and CSV escaping.
+ *
+ * Expected CSV format:
+ * - Column 0: timestamp (ISO format)
+ * - Column 1: message (JSON log entry)
+ */
+export function parseBedrockCsv(csvContent: string): BedrockLogEntry[] {
+  const parsed = Papa.parse<string[]>(csvContent, {
+    header: false,
+    skipEmptyLines: true,
+  });
+
+  // Detect header row
+  const startIdx =
+    parsed.data.length > 0 &&
+    (parsed.data[0][0]?.toLowerCase().includes('timestamp') ||
+      parsed.data[0][1]?.toLowerCase().includes('message'))
+      ? 1
+      : 0;
+
+  const entries: BedrockLogEntry[] = [];
+  for (let i = startIdx; i < parsed.data.length; i++) {
+    const row = parsed.data[i];
+    if (!row || row.length < 2 || !row[1]?.trim()) continue;
+
+    // papaparse handles CSV unquoting/unescaping, but the JSON may contain
+    // literal control characters (newlines, tabs) inside string values from
+    // body-logged fields like inputBodyJson. Escape them for valid JSON.
+    const sanitized = escapeJsonControlChars(row[1]);
+    try {
+      entries.push(JSON.parse(sanitized));
+    } catch {
+      entries.push(parseCsvMessage(sanitized));
+    }
+  }
+  return entries;
 }

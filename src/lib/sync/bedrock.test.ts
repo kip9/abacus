@@ -5,6 +5,7 @@ import {
   calculateBedrockCost,
   parseBedrockLogEntry,
   parseCsvMessage,
+  parseBedrockCsv,
   BedrockLogEntry,
 } from './bedrock';
 
@@ -243,6 +244,193 @@ describe('Bedrock Sync', () => {
       const entry = parseCsvMessage(message);
 
       expect(entry.timestamp).toBe('2026-01-31T14:27:21Z');
+    });
+  });
+
+  describe('parseBedrockCsv', () => {
+    const makeEntry = (overrides: Partial<BedrockLogEntry> = {}): BedrockLogEntry => ({
+      timestamp: '2026-01-31T14:27:21Z',
+      accountId: '445051798927',
+      region: 'eu-west-3',
+      requestId: 'req-001',
+      operation: 'InvokeModelWithResponseStream',
+      modelId: 'anthropic.claude-3-sonnet-20240229-v1:0',
+      identity: { arn: 'arn:aws:iam::445051798927:user/TestUser' },
+      input: { inputTokenCount: 100 },
+      output: { outputTokenCount: 50 },
+      ...overrides,
+    });
+
+    it('parses simple CSV with header row', () => {
+      const entry = makeEntry();
+      const csv = `timestamp,message\n2026-01-31T14:27:21Z,"${JSON.stringify(entry).replace(/"/g, '""')}"`;
+      const entries = parseBedrockCsv(csv);
+
+      expect(entries).toHaveLength(1);
+      expect(entries[0].requestId).toBe('req-001');
+      expect(entries[0].input.inputTokenCount).toBe(100);
+      expect(entries[0].output.outputTokenCount).toBe(50);
+    });
+
+    it('parses CSV without header row', () => {
+      const entry = makeEntry();
+      const csv = `2026-01-31T14:27:21Z,"${JSON.stringify(entry).replace(/"/g, '""')}"`;
+      const entries = parseBedrockCsv(csv);
+
+      expect(entries).toHaveLength(1);
+      expect(entries[0].requestId).toBe('req-001');
+    });
+
+    it('parses multiple rows', () => {
+      const entry1 = makeEntry({ requestId: 'req-001' });
+      const entry2 = makeEntry({ requestId: 'req-002', input: { inputTokenCount: 200 } });
+      const entry3 = makeEntry({ requestId: 'req-003', output: { outputTokenCount: 300 } });
+
+      const rows = [
+        'timestamp,message',
+        `2026-01-31T14:27:21Z,"${JSON.stringify(entry1).replace(/"/g, '""')}"`,
+        `2026-01-31T15:00:00Z,"${JSON.stringify(entry2).replace(/"/g, '""')}"`,
+        `2026-01-31T16:00:00Z,"${JSON.stringify(entry3).replace(/"/g, '""')}"`,
+      ];
+      const entries = parseBedrockCsv(rows.join('\n'));
+
+      expect(entries).toHaveLength(3);
+      expect(entries[0].requestId).toBe('req-001');
+      expect(entries[1].requestId).toBe('req-002');
+      expect(entries[1].input.inputTokenCount).toBe(200);
+      expect(entries[2].requestId).toBe('req-003');
+      expect(entries[2].output.outputTokenCount).toBe(300);
+    });
+
+    it('handles multi-line CSV records with embedded newlines in inputBodyJson', () => {
+      const entry = makeEntry({
+        requestId: 'req-multiline',
+        input: {
+          inputContentType: 'application/json',
+          inputBodyJson: {
+            messages: [{ role: 'user', content: 'line one\nline two\nline three' }],
+            system: 'You are a helpful\nassistant.',
+          },
+          inputTokenCount: 500,
+        },
+        output: {
+          outputContentType: 'application/json',
+          outputBodyJson: { content: [{ text: 'response\nwith\nnewlines' }] },
+          outputTokenCount: 200,
+        },
+      });
+
+      // Build CSV the way CloudWatch exports it: JSON is quoted, internal quotes doubled
+      const jsonStr = JSON.stringify(entry);
+      const csvEscaped = jsonStr.replace(/"/g, '""');
+      const csv = `timestamp,message\n2026-01-31T14:27:21Z,"${csvEscaped}"`;
+      const entries = parseBedrockCsv(csv);
+
+      expect(entries).toHaveLength(1);
+      expect(entries[0].requestId).toBe('req-multiline');
+      expect(entries[0].input.inputTokenCount).toBe(500);
+      expect(entries[0].output.outputTokenCount).toBe(200);
+      expect(entries[0].input.inputBodyJson).toBeDefined();
+      expect(entries[0].output.outputBodyJson).toBeDefined();
+    });
+
+    it('handles body logging fields alongside token counts', () => {
+      const entry = makeEntry({
+        input: {
+          inputContentType: 'application/json',
+          inputBodyJson: { messages: [{ role: 'user', content: 'hello' }] },
+          inputTokenCount: 42,
+          cacheReadInputTokenCount: 10,
+          cacheWriteInputTokenCount: 20,
+        },
+        output: {
+          outputContentType: 'application/json',
+          outputBodyJson: { content: [{ text: 'hi' }] },
+          outputTokenCount: 15,
+        },
+      });
+
+      const csv = `timestamp,message\n2026-01-31T14:27:21Z,"${JSON.stringify(entry).replace(/"/g, '""')}"`;
+      const entries = parseBedrockCsv(csv);
+
+      expect(entries).toHaveLength(1);
+      const parsed = entries[0];
+      expect(parsed.input.inputTokenCount).toBe(42);
+      expect(parsed.input.cacheReadInputTokenCount).toBe(10);
+      expect(parsed.input.cacheWriteInputTokenCount).toBe(20);
+      expect(parsed.output.outputTokenCount).toBe(15);
+
+      // Verify it still produces valid usage records
+      const record = parseBedrockLogEntry(parsed);
+      expect(record.inputTokens).toBe(42);
+      expect(record.outputTokens).toBe(15);
+      expect(record.cacheReadTokens).toBe(10);
+      expect(record.cacheWriteTokens).toBe(20);
+    });
+
+    it('handles CSV double-quote escaping', () => {
+      // Build a CSV where the JSON message contains quotes that get CSV-escaped
+      const entry = makeEntry({ requestId: 'req-quotes' });
+      const jsonStr = JSON.stringify(entry);
+      // CSV standard: field is wrapped in quotes, internal quotes doubled
+      const csv = `timestamp,message\n2026-01-31T14:27:21Z,"${jsonStr.replace(/"/g, '""')}"`;
+      const entries = parseBedrockCsv(csv);
+
+      expect(entries).toHaveLength(1);
+      expect(entries[0].requestId).toBe('req-quotes');
+    });
+
+    it('skips rows with empty message column', () => {
+      const entry = makeEntry();
+      const csv = [
+        'timestamp,message',
+        `2026-01-31T14:27:21Z,"${JSON.stringify(entry).replace(/"/g, '""')}"`,
+        '2026-01-31T15:00:00Z,',
+        '2026-01-31T16:00:00Z,  ',
+      ].join('\n');
+      const entries = parseBedrockCsv(csv);
+
+      expect(entries).toHaveLength(1);
+      expect(entries[0].requestId).toBe('req-001');
+    });
+
+    it('detects header with "message" keyword', () => {
+      const entry = makeEntry();
+      const csv = `@timestamp,@message\n2026-01-31T14:27:21Z,"${JSON.stringify(entry).replace(/"/g, '""')}"`;
+      const entries = parseBedrockCsv(csv);
+
+      expect(entries).toHaveLength(1);
+      expect(entries[0].requestId).toBe('req-001');
+    });
+
+    it('handles backslash followed by literal newline in content', () => {
+      // Real-world case: body content has a backslash at end of line,
+      // followed by a literal newline (not a JSON \\n escape sequence)
+      const entry = makeEntry({
+        requestId: 'req-backslash',
+        input: {
+          inputContentType: 'application/json',
+          inputBodyJson: { messages: [{ role: 'user', content: 'path is C:\\' }] },
+          inputTokenCount: 75,
+        },
+      });
+
+      // Simulate what CloudWatch produces: the JSON has a literal backslash
+      // before a value, and the CSV has embedded newlines
+      const jsonStr = JSON.stringify(entry);
+      // Replace the escaped \\n with a real backslash + literal newline
+      // to simulate the CloudWatch export behavior
+      const withLiteralNewline = jsonStr.replace(
+        'C:\\\\',
+        'C:\\\n'
+      );
+      const csvEscaped = withLiteralNewline.replace(/"/g, '""');
+      const csv = `timestamp,message\n2026-01-31T14:27:21Z,"${csvEscaped}"`;
+      const entries = parseBedrockCsv(csv);
+
+      expect(entries).toHaveLength(1);
+      expect(entries[0].requestId).toBe('req-backslash');
+      expect(entries[0].input.inputTokenCount).toBe(75);
     });
   });
 });

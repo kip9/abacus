@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { getBedrockSyncState, parseBedrockLogEntry, parseCsvMessage, BedrockLogEntry } from '../../src/lib/sync/bedrock';
+import { getBedrockSyncState, parseBedrockLogEntry, parseBedrockCsv } from '../../src/lib/sync/bedrock';
 import { insertUsageRecord, getIdentityMapping, setIdentityMapping, getIdentityMappings } from '../../src/lib/queries';
 
 export async function cmdBedrockStatus() {
@@ -36,14 +36,9 @@ export async function cmdImportBedrockCsv(filePath: string) {
   }
 
   const content = fs.readFileSync(filePath, 'utf-8');
-  const lines = content.split('\n');
+  const logEntries = parseBedrockCsv(content);
 
-  // Parse header
-  const headerLine = lines[0];
-  const hasHeader = headerLine.toLowerCase().includes('timestamp') || headerLine.toLowerCase().includes('message');
-
-  const startLine = hasHeader ? 1 : 0;
-  console.log(`Total rows: ${lines.length - startLine}\n`);
+  console.log(`Total rows: ${logEntries.length}\n`);
 
   let imported = 0;
   let skipped = 0;
@@ -52,32 +47,8 @@ export async function cmdImportBedrockCsv(filePath: string) {
   let lastDate = '';
   const unmappedUsers = new Set<string>();
 
-  for (let i = startLine; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-
+  for (const logEntry of logEntries) {
     try {
-      // Parse CSV line - handle quoted JSON with embedded commas
-      let messageJson: string;
-
-      // Find the first comma that separates timestamp from message
-      const firstComma = line.indexOf(',');
-      if (firstComma === -1) {
-        skipped++;
-        continue;
-      }
-
-      messageJson = line.slice(firstComma + 1);
-
-      // Parse the JSON message
-      let logEntry: BedrockLogEntry;
-      try {
-        logEntry = parseCsvMessage(messageJson);
-      } catch {
-        // Try direct JSON parse if CSV parsing fails
-        logEntry = JSON.parse(messageJson);
-      }
-
       // Parse into usage record
       const record = parseBedrockLogEntry(logEntry);
 
@@ -131,7 +102,7 @@ export async function cmdImportBedrockCsv(filePath: string) {
         errors++;
         process.stdout.write('E');
         if (errors <= 5) {
-          console.error(`\nError on line ${i + 1}:`, err);
+          console.error(`\nError on entry:`, err);
         }
       }
     }
