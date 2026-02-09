@@ -38,7 +38,7 @@ import {
   BedrockUsageRecord,
   SyncResult as BedrockResult,
 } from './bedrock';
-import { sql } from '@vercel/postgres';
+import { sql } from '../db';
 
 export interface FullSyncResult {
   anthropic: AnthropicResult;

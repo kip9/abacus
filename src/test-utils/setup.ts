@@ -56,16 +56,10 @@ if (dbUrl) {
 
 // Store references for transaction management and db access
 let pgliteClient: import('@electric-sql/pglite').PGlite | null = null;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let pgliteDb: any = null;
 
-// Shared reference for db mock (allows @/lib/db mock to access pgliteDb)
+// Shared reference for db mock (allows @/lib/db mock to access drizzle instance)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const dbRef: { current: any } = { current: null };
-
-// Track transaction depth for savepoint-based nested transaction support
-// Depth 0 = no transaction, 1 = test transaction, 2+ = nested (uses savepoints)
-let transactionDepth = 0;
 
 vi.mock('@vercel/postgres', async () => {
   const { PGlite } = await import('@electric-sql/pglite');
@@ -74,67 +68,16 @@ vi.mock('@vercel/postgres', async () => {
 
   // Create in-memory PGlite instance
   pgliteClient = new PGlite();
-  pgliteDb = drizzle(pgliteClient, { schema });
-  dbRef.current = pgliteDb;
+  dbRef.current = drizzle(pgliteClient, { schema });
 
   // Push schema to in-memory database
   const { pushSchema } = await import('drizzle-kit/api');
-  const { apply } = await pushSchema(schema, pgliteDb as never);
+  const { apply } = await pushSchema(schema, dbRef.current as never);
   await apply();
-
-  // Helper to handle transaction commands with savepoint support
-  const handleTransactionCommand = async (query: string): Promise<{ rows: unknown[] } | null> => {
-    const upperQuery = query.trim().toUpperCase();
-
-    if (upperQuery === 'BEGIN' || upperQuery === 'BEGIN TRANSACTION' || upperQuery === 'START TRANSACTION') {
-      if (transactionDepth > 0) {
-        // Already in a transaction - use savepoint instead
-        transactionDepth++;
-        await pgliteClient!.query(`SAVEPOINT sp_${transactionDepth}`);
-        return { rows: [] };
-      }
-      transactionDepth = 1;
-      await pgliteClient!.query('BEGIN');
-      return { rows: [] };
-    }
-
-    if (upperQuery === 'COMMIT' || upperQuery === 'END' || upperQuery === 'END TRANSACTION') {
-      if (transactionDepth > 1) {
-        // Release savepoint for nested transaction
-        await pgliteClient!.query(`RELEASE SAVEPOINT sp_${transactionDepth}`);
-        transactionDepth--;
-        return { rows: [] };
-      }
-      if (transactionDepth === 1) {
-        transactionDepth = 0;
-        await pgliteClient!.query('COMMIT');
-        return { rows: [] };
-      }
-      return { rows: [] };
-    }
-
-    if (upperQuery === 'ROLLBACK') {
-      if (transactionDepth > 1) {
-        // Rollback to savepoint for nested transaction
-        await pgliteClient!.query(`ROLLBACK TO SAVEPOINT sp_${transactionDepth}`);
-        transactionDepth--;
-        return { rows: [] };
-      }
-      if (transactionDepth === 1) {
-        transactionDepth = 0;
-        await pgliteClient!.query('ROLLBACK');
-        return { rows: [] };
-      }
-      return { rows: [] };
-    }
-
-    return null; // Not a transaction command
-  };
 
   // Create sql template function that forwards to PGlite
   // Returns object with .rows to match @vercel/postgres interface
   const sql = async function (strings: TemplateStringsArray, ...values: unknown[]) {
-    // Build query string with $1, $2, etc. placeholders
     let query = '';
     strings.forEach((str, i) => {
       query += str;
@@ -142,20 +85,11 @@ vi.mock('@vercel/postgres', async () => {
         query += `$${i + 1}`;
       }
     });
-
-    // Handle transaction commands with savepoint support
-    const txResult = await handleTransactionCommand(query);
-    if (txResult !== null) return txResult;
-
     const result = await pgliteClient!.query(query, values as never[]);
     return { rows: result.rows };
   };
 
   sql.query = async (text: string, params?: unknown[]) => {
-    // Handle transaction commands with savepoint support
-    const txResult = await handleTransactionCommand(text);
-    if (txResult !== null) return txResult;
-
     const result = await pgliteClient!.query(text, params as never[]);
     return { rows: result.rows };
   };
@@ -165,41 +99,58 @@ vi.mock('@vercel/postgres', async () => {
 
 // Mock @/lib/db to use the PGlite-backed Drizzle instance
 // This enables Drizzle query builder methods (db.insert, db.select, etc.) in tests
-vi.mock('@/lib/db', async (importOriginal) => {
-  const original = await importOriginal<typeof import('../lib/db')>();
+vi.mock('@/lib/db', async () => {
   const schema = await import('../lib/schema');
-  const drizzleOrm = await import('drizzle-orm');
+
+  // SQL template tag function for raw SQL queries (matches real sql interface)
+  const sql = async (strings: TemplateStringsArray, ...values: unknown[]) => {
+    if (!pgliteClient) {
+      throw new Error('Database not initialized - ensure @vercel/postgres mock runs first');
+    }
+    let queryStr = '';
+    strings.forEach((str, i) => {
+      queryStr += str;
+      if (i < values.length) {
+        queryStr += `$${i + 1}`;
+      }
+    });
+    const result = await pgliteClient.query(queryStr, values as never[]);
+    return { rows: result.rows, rowCount: result.affectedRows };
+  };
+
+  // Query function for parameterized queries
+  const query = async (sqlString: string, values: unknown[]) => {
+    if (!pgliteClient) {
+      throw new Error('Database not initialized - ensure @vercel/postgres mock runs first');
+    }
+    const result = await pgliteClient.query(sqlString, values as never[]);
+    return { rows: result.rows, rowCount: result.affectedRows };
+  };
 
   return {
-    // Proxy db to always use current pgliteDb (handles initialization timing)
+    // Proxy db to always use current drizzle instance (handles initialization timing)
     get db() {
       if (!dbRef.current) {
         throw new Error('Database not initialized - ensure @vercel/postgres mock runs first');
       }
       return dbRef.current;
     },
+    sql,
+    query,
     // Re-export schema
     ...schema,
-    // Re-export sql helper from drizzle-orm
-    sql: drizzleOrm.sql,
-    // Keep vercelSql for backward compatibility (proxies to pgliteDb)
-    get vercelSql() {
-      return dbRef.current;
-    },
   };
 });
 
 // Transaction management for test isolation
 beforeEach(async () => {
   if (pgliteClient) {
-    transactionDepth = 1; // Mark that we're in the test transaction
     await pgliteClient.query('BEGIN');
   }
 });
 
 afterEach(async () => {
   if (pgliteClient) {
-    transactionDepth = 0; // Reset for next test
     await pgliteClient.query('ROLLBACK');
   }
 });
@@ -223,6 +174,11 @@ vi.mock('@/lib/auth', () => ({
 // MSW Setup for External API Mocking
 // =============================================================================
 
-beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
+beforeAll(async () => {
+  // Force @vercel/postgres mock to initialize by importing it
+  // This ensures dbRef.current is set before any tests run
+  await import('@vercel/postgres');
+  server.listen({ onUnhandledRequest: 'warn' });
+});
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());

@@ -14,12 +14,20 @@ export function createVercelAdapter(): DatabaseAdapter {
   return {
     db,
 
-    async query<T extends Record<string, unknown>>(
+    async sql<T extends Record<string, unknown>>(
       strings: TemplateStringsArray,
       ...values: unknown[]
-    ): Promise<{ rows: T[] }> {
+    ): Promise<{ rows: T[]; rowCount?: number }> {
       const result = await sql.query(strings.join('$'), values);
-      return { rows: result.rows as T[] };
+      return { rows: result.rows as T[], rowCount: result.rowCount ?? undefined };
+    },
+
+    async query<T extends Record<string, unknown>>(
+      sqlString: string,
+      values: unknown[]
+    ): Promise<{ rows: T[]; rowCount?: number }> {
+      const result = await sql.query(sqlString, values);
+      return { rows: result.rows as T[], rowCount: result.rowCount ?? undefined };
     },
 
     async close(): Promise<void> {

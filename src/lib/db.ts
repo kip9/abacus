@@ -7,7 +7,7 @@
  */
 
 // Re-export everything from the new db module
-export { db, query, sql, getAdapter, createDatabaseAdapter } from './db/index';
+export { db, sql, query, getAdapter, createDatabaseAdapter } from './db/index';
 export type { DatabaseAdapter } from './db/index';
 
 // Re-export schema for convenience

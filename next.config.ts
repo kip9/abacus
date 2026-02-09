@@ -46,7 +46,8 @@ export default withSentryConfig(nextConfig, {
     // See the following for more information:
     // https://docs.sentry.io/product/crons/
     // https://vercel.com/docs/cron-jobs
-    automaticVercelMonitors: true,
+    // Only enable on Vercel deployments (VERCEL env var is set by Vercel)
+    automaticVercelMonitors: process.env.VERCEL === '1',
 
     // Tree-shaking options for reducing bundle size
     treeshake: {

@@ -1,7 +1,6 @@
-import { sql } from 'drizzle-orm';
-import type { DatabaseAdapter, ProxiedDatabase } from './types';
+import type { DatabaseAdapter, ProxiedDatabase, QueryResultRow } from './types';
 
-export type { DatabaseAdapter, ProxiedDatabase } from './types';
+export type { DatabaseAdapter, ProxiedDatabase, QueryResultRow } from './types';
 
 /**
  * Detect which database driver to use.
@@ -50,44 +49,57 @@ export function getAdapter(): DatabaseAdapter {
  * Lazy proxy for the database instance.
  * Defers adapter creation until first property access,
  * allowing environment variables to be loaded first.
- *
- * Also normalizes the `execute` method return value to always have a `.rows` property,
- * since postgres.js returns an array directly while Vercel returns { rows: T[] }.
  */
 export const db: ProxiedDatabase = new Proxy({} as ProxiedDatabase, {
   get(_, prop) {
-    const value = Reflect.get(getAdapter().db, prop);
-
-    // Wrap execute method to normalize return value
-    if (prop === 'execute' && typeof value === 'function') {
-      return async (...args: unknown[]) => {
-        const result = await value.apply(getAdapter().db, args);
-        // If result is an array (postgres.js), wrap it in { rows: result }
-        // If result already has .rows (Vercel), return as-is
-        if (Array.isArray(result)) {
-          return { rows: result };
-        }
-        return result;
-      };
-    }
-
-    return value;
+    return Reflect.get(getAdapter().db, prop);
   },
 });
 
 /**
- * Execute raw SQL queries.
+ * Execute raw SQL queries using template literals.
  * Lazily initializes the adapter on first call.
+ *
+ * Matches the API of @vercel/postgres sql template tag.
+ *
+ * @typeParam O - The expected row type. Defaults to any if not specified.
+ * @example
+ * // Without type parameter (returns any rows, like Vercel)
+ * const result = await sql`SELECT * FROM users`;
+ * console.log(result.rows[0].email);
+ *
+ * // With type parameter (returns typed rows)
+ * const result = await sql<{ email: string }>`SELECT email FROM users`;
  */
-export async function query<T extends Record<string, unknown>>(
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function sql<O extends QueryResultRow = any>(
   strings: TemplateStringsArray,
   ...values: unknown[]
-): Promise<{ rows: T[] }> {
-  return getAdapter().query<T>(strings, ...values);
+): Promise<{ rows: O[]; rowCount?: number }> {
+  const result = await getAdapter().sql(strings, ...values);
+  return { rows: result.rows as O[], rowCount: result.rowCount };
+}
+
+/**
+ * Execute a parameterized SQL query with a raw SQL string and values array.
+ * Use this when building dynamic SQL queries programmatically.
+ *
+ * @typeParam O - The expected row type. Defaults to any if not specified.
+ * @example
+ * // Without type parameter
+ * const result = await query('SELECT * FROM users WHERE id = $1', [userId]);
+ *
+ * // With type parameter
+ * const result = await query<{ id: number }>('SELECT id FROM users WHERE email = $1', [email]);
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function query<O extends QueryResultRow = any>(
+  sqlString: string,
+  values: unknown[]
+): Promise<{ rows: O[]; rowCount?: number }> {
+  const result = await getAdapter().query(sqlString, values);
+  return { rows: result.rows as O[], rowCount: result.rowCount };
 }
 
 // Re-export schema for convenience
 export * from '../schema';
-
-// Re-export sql for building queries
-export { sql };

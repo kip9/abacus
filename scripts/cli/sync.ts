@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres';
+import { sql } from '../../src/lib/db';
 import { syncAnthropicUsage, backfillAnthropicUsage, resetAnthropicBackfillComplete } from '../../src/lib/sync/anthropic';
 import { syncCursorUsage, backfillCursorUsage, resetCursorBackfillComplete } from '../../src/lib/sync/cursor';
 import { backfillGitHubUsage, resetGitHubBackfillComplete } from '../../src/lib/sync/github';

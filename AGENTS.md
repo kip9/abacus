@@ -42,6 +42,45 @@ export const GET = wrapRouteHandlerWithSentry(handler, {
 
 Use `db-migrate` skill for schema changes. See `.claude/skills/db-migrate/SKILL.md`
 
+### Database Adapter
+
+The codebase uses a database abstraction layer (`src/lib/db/`) that supports both Vercel Postgres (production) and local PostgreSQL (development).
+
+**Mode selection** (via `USE_LOCAL_DB` env var):
+- `USE_LOCAL_DB=1` → Local PostgreSQL via postgres.js driver
+- Unset or other → Vercel Postgres (default for production)
+
+**Running locally with PostgreSQL:**
+```bash
+# Start local postgres (e.g., via Docker)
+docker run -d --name abacus-db -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:15
+
+# Set environment variables in .env.local
+USE_LOCAL_DB=1
+POSTGRES_URL=postgres://postgres:postgres@localhost:5432/abacus
+
+# Run CLI or dev server
+pnpm cli stats
+pnpm dev
+```
+
+**Database imports:**
+```typescript
+// For raw SQL queries (template literals)
+import { sql } from '@/lib/db';
+const result = await sql`SELECT * FROM users WHERE id = ${id}`;
+
+// For Drizzle ORM queries
+import { db } from '@/lib/db';
+const users = await db.select().from(usageRecords);
+
+// For parameterized queries (dynamic SQL)
+import { query } from '@/lib/db';
+const result = await query('SELECT * FROM users WHERE id = $1', [id]);
+```
+
+**Note:** Tests use PGlite (in-memory) and don't require any database setup.
+
 ## CLI
 
 | Command | Description |

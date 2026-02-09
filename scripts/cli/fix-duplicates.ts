@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres';
+import { sql } from '../../src/lib/db';
 
 /**
  * Fix duplicate usage records caused by raw_model inconsistency.

@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres';
+import { sql } from '../../src/lib/db';
 import { syncGitHubRepo, backfillGitHubUsage, getGitHubSyncState, getGitHubBackfillState, detectAiAttribution, cleanupMergeCommits } from '../../src/lib/sync/github';
 import { getGitHubUsersWithMappingStatus, mapGitHubUser, getGitHubUser, syncGitHubMemberEmails, hasUnattributedCommits } from '../../src/lib/sync/github-mappings';
 
