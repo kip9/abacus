@@ -1,17 +1,14 @@
-import { drizzle } from 'drizzle-orm/vercel-postgres';
-import { sql as vercelSql } from '@vercel/postgres';
-import { sql } from 'drizzle-orm';
-import * as schema from './schema';
+/**
+ * Database module - re-exports from db/ for backward compatibility.
+ *
+ * The database adapter automatically selects the appropriate driver:
+ * - Vercel environment: Uses @vercel/postgres (WebSocket/Neon)
+ * - Local environment: Uses postgres.js (standard PostgreSQL)
+ */
 
-// Create Drizzle client
-export const db = drizzle(vercelSql, { schema });
+// Re-export everything from the new db module
+export { db, query, sql, getAdapter, createDatabaseAdapter } from './db/index';
+export type { DatabaseAdapter } from './db/index';
 
 // Re-export schema for convenience
 export * from './schema';
-
-// Re-export sql for raw queries
-export { sql };
-
-// Legacy sql template tag for backward compatibility with existing queries
-// This allows gradual migration from raw SQL to Drizzle
-export { sql as vercelSql } from '@vercel/postgres';

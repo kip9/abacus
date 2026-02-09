@@ -1,8 +1,6 @@
 import * as fs from 'fs';
 import { getBedrockSyncState, parseBedrockLogEntry, parseCsvMessage, BedrockLogEntry } from '../../src/lib/sync/bedrock';
 import { insertUsageRecord, getIdentityMapping, setIdentityMapping, getIdentityMappings } from '../../src/lib/queries';
-import { db, usageRecords } from '../../src/lib/db';
-import { eq, sql } from 'drizzle-orm';
 
 export async function cmdBedrockStatus() {
   console.log('Bedrock Sync Status\n');
@@ -17,13 +15,9 @@ export async function cmdBedrockStatus() {
     console.log('\nImport CloudWatch logs: pnpm cli import:bedrock-csv <path-to-csv>');
   }
 
-  // Show record count
-  const countResult = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(usageRecords)
-    .where(eq(usageRecords.tool, 'bedrock'));
-
-  console.log(`\nTotal Bedrock records: ${countResult[0]?.count || 0}`);
+  // Show mapped users
+  const mappings = await getIdentityMappings('bedrock');
+  console.log(`\nMapped IAM users: ${mappings.length}`);
 }
 
 /**
@@ -167,32 +161,17 @@ export async function cmdBedrockUsers() {
 
   // Get existing mappings
   const mappings = await getIdentityMappings('bedrock');
-  const mappingMap = new Map(mappings.map(m => [m.external_id, m.email]));
 
-  // Get unique IAM users from tool_record_id (which contains requestId)
-  // We need to look at identity_mappings for bedrock source
-  const result = await db.execute<{ iamUser: string; requestCount: number }>(sql`
-    SELECT
-      external_id as "iamUser",
-      email
-    FROM identity_mappings
-    WHERE source = 'bedrock'
-    ORDER BY external_id
-  `);
-
-  if (result.rows.length === 0 && mappings.length === 0) {
-    console.log('No Bedrock users found.');
-    console.log('\nImport logs first: pnpm cli import:bedrock-csv <path-to-csv>');
+  if (mappings.length === 0) {
+    console.log('No Bedrock user mappings found.');
+    console.log('\nAdd a mapping: pnpm cli bedrock:users:map <iam-user> <email>');
+    console.log('Then import logs: pnpm cli import:bedrock-csv <path-to-csv>');
     return;
   }
 
   console.log('Mapped users:');
-  if (mappings.length === 0) {
-    console.log('  (none)');
-  } else {
-    for (const mapping of mappings) {
-      console.log(`  ${mapping.external_id} -> ${mapping.email}`);
-    }
+  for (const mapping of mappings) {
+    console.log(`  ${mapping.external_id} -> ${mapping.email}`);
   }
 
   console.log('\n---');
