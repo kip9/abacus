@@ -33,7 +33,7 @@ import { cmdDbMigrate } from './db';
 import { cmdStats } from './stats';
 import { cmdAnthropicStatus } from './anthropic';
 import { cmdCursorStatus, cmdImportCursorCsv } from './cursor';
-import { cmdBedrockStatus, cmdImportBedrockCsv, cmdBedrockUsers, cmdBedrockUsersMap } from './bedrock';
+import { cmdBedrockStatus, cmdImportBedrockCsv, cmdImportBedrockExport, cmdBedrockUsers, cmdBedrockUsersMap } from './bedrock';
 import { cmdGitHubStatus, cmdGitHubSync, cmdGitHubCommits, cmdGitHubUsers, cmdGitHubUsersMap, cmdGitHubUsersSync, cmdGitHubCleanupMerges } from './github';
 import { cmdMappings, cmdMappingsSync, cmdMappingsFix } from './mappings';
 import { cmdSync, cmdBackfill, cmdGitHubBackfill, cmdBackfillComplete, cmdBackfillReset, cmdGaps } from './sync';
@@ -81,6 +81,8 @@ Commands:
                         Import Cursor usage from CSV export
   import:bedrock-csv <file>
                         Import Bedrock usage from CloudWatch CSV export
+  import:bedrock-export <file>
+                        Import Bedrock usage from CloudWatch export (timestamp + JSON format)
   bedrock:status        Show Bedrock sync state
   bedrock:users         List IAM users and their email mappings
   bedrock:users:map <iam> <email>
@@ -262,6 +264,16 @@ async function main() {
           break;
         }
         await cmdImportBedrockCsv(filePath);
+        break;
+      }
+      case 'import:bedrock-export': {
+        const filePath = args[1];
+        if (!filePath) {
+          console.error('Error: Please specify an export file path');
+          console.error('Usage: npm run cli import:bedrock-export <path-to-file>');
+          break;
+        }
+        await cmdImportBedrockExport(filePath);
         break;
       }
       case 'bedrock:status':

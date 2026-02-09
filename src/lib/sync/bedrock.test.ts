@@ -220,6 +220,31 @@ describe('Bedrock Sync', () => {
       expect(record.cacheReadTokens).toBe(0);
       expect(record.cacheWriteTokens).toBe(0);
     });
+
+    it('handles error entries with no input/output fields', () => {
+      // Error entries (e.g., AccessDeniedException) have no input or output
+      const entry = {
+        timestamp: '2026-02-08T13:41:37Z',
+        accountId: '445051798927',
+        region: 'eu-west-3',
+        requestId: 'f7dfe505-62eb-4c0b-bd93-c415d0af38f7',
+        operation: 'InvokeModelWithResponseStream',
+        modelId: 'arn:aws:bedrock:eu-west-3:445051798927:inference-profile/eu.anthropic.claude-opus-4-6-v1',
+        identity: { arn: 'arn:aws:iam::445051798927:user/BedrockAPIKey-dm4c' },
+        errorCode: 'AccessDeniedException',
+        schemaType: 'ModelInvocationLog',
+        schemaVersion: '1.0',
+      } as unknown as BedrockLogEntry;
+
+      const record = parseBedrockLogEntry(entry);
+
+      expect(record.inputTokens).toBe(0);
+      expect(record.outputTokens).toBe(0);
+      expect(record.cacheReadTokens).toBe(0);
+      expect(record.cacheWriteTokens).toBe(0);
+      expect(record.cost).toBe(0);
+      expect(record.requestId).toBe('f7dfe505-62eb-4c0b-bd93-c415d0af38f7');
+    });
   });
 
   describe('parseCsvMessage', () => {

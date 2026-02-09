@@ -260,11 +260,12 @@ export function parseBedrockLogEntry(log: BedrockLogEntry): BedrockUsageRecord {
   const rawModel = extractModelFromArn(log.modelId);
   const model = normalizeModelName(rawModel);
 
-  // Extract token counts (with defaults for optional fields)
-  const inputTokens = log.input.inputTokenCount || 0;
-  const outputTokens = log.output.outputTokenCount || 0;
-  const cacheReadTokens = log.input.cacheReadInputTokenCount || 0;
-  const cacheWriteTokens = log.input.cacheWriteInputTokenCount || 0;
+  // Extract token counts (with defaults for optional/missing fields)
+  // Error entries (e.g., AccessDeniedException) have no input/output at all
+  const inputTokens = log.input?.inputTokenCount || 0;
+  const outputTokens = log.output?.outputTokenCount || 0;
+  const cacheReadTokens = log.input?.cacheReadInputTokenCount || 0;
+  const cacheWriteTokens = log.input?.cacheWriteInputTokenCount || 0;
 
   // Calculate cost
   const cost = calculateBedrockCost(model, {
@@ -317,7 +318,7 @@ export function parseCsvMessage(messageJson: string): BedrockLogEntry {
  * tabs, etc. inside JSON string values (e.g., in inputBodyJson content).
  * These are invalid JSON and must be escaped before parsing.
  */
-function escapeJsonControlChars(json: string): string {
+export function escapeJsonControlChars(json: string): string {
   // Replace control characters that appear inside JSON strings.
   // We walk the string tracking whether we're inside a JSON string literal.
   let result = '';
