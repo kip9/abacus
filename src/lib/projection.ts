@@ -9,13 +9,14 @@
 import type { DailyUsage, DataCompleteness } from './queries';
 
 // Tool configuration for projection
-type ToolKey = 'claudeCode' | 'cursor';
-type ProjectedKey = 'projectedClaudeCode' | 'projectedCursor';
-type CompletenessKey = 'claudeCode' | 'cursor';
+type ToolKey = 'claudeCode' | 'cursor' | 'bedrock';
+type ProjectedKey = 'projectedClaudeCode' | 'projectedCursor' | 'projectedBedrock';
+type CompletenessKey = 'claudeCode' | 'cursor' | 'bedrock';
 
 const TOOLS: { key: ToolKey; projectedKey: ProjectedKey; completenessKey: CompletenessKey }[] = [
   { key: 'claudeCode', projectedKey: 'projectedClaudeCode', completenessKey: 'claudeCode' },
   { key: 'cursor', projectedKey: 'projectedCursor', completenessKey: 'cursor' },
+  { key: 'bedrock', projectedKey: 'projectedBedrock', completenessKey: 'bedrock' },
 ];
 
 /**
@@ -31,7 +32,7 @@ function calculateHistoricalAverages(
   todayStr: string,
   targetDayOfWeek?: number
 ): Record<ToolKey, number> {
-  const averages: Record<ToolKey, number> = { claudeCode: 0, cursor: 0 };
+  const averages: Record<ToolKey, number> = { claudeCode: 0, cursor: 0, bedrock: 0 };
 
   for (const tool of TOOLS) {
     const lastDataDate = completeness[tool.completenessKey].lastDataDate;
@@ -99,7 +100,7 @@ export function applyProjections(
     const isToday = dayData.date === todayStr;
 
     // Check which tools have incomplete data for this day
-    const toolIncomplete: Record<ToolKey, boolean> = { claudeCode: false, cursor: false };
+    const toolIncomplete: Record<ToolKey, boolean> = { claudeCode: false, cursor: false, bedrock: false };
     let anyIncomplete = isToday; // Today is always incomplete
 
     for (const tool of TOOLS) {
@@ -170,7 +171,7 @@ export function hasIncompleteData(data: DailyUsage[]): boolean {
  * Projected means we extrapolated from partial data; incomplete means we just marked it.
  */
 export function hasProjectedData(data: DailyUsage[]): boolean {
-  return data.some(d => d.projectedClaudeCode !== undefined || d.projectedCursor !== undefined);
+  return data.some(d => d.projectedClaudeCode !== undefined || d.projectedCursor !== undefined || d.projectedBedrock !== undefined);
 }
 
 /**
@@ -178,7 +179,7 @@ export function hasProjectedData(data: DailyUsage[]): boolean {
  * This is when projectedValue === 0, meaning we had no data and used the historical average.
  */
 export function hasEstimatedData(data: DailyUsage[]): boolean {
-  return data.some(d => d.projectedClaudeCode === 0 || d.projectedCursor === 0);
+  return data.some(d => d.projectedClaudeCode === 0 || d.projectedCursor === 0 || d.projectedBedrock === 0);
 }
 
 /**
@@ -188,6 +189,7 @@ export function hasEstimatedData(data: DailyUsage[]): boolean {
 export function hasExtrapolatedData(data: DailyUsage[]): boolean {
   return data.some(d =>
     (d.projectedClaudeCode !== undefined && d.projectedClaudeCode > 0) ||
-    (d.projectedCursor !== undefined && d.projectedCursor > 0)
+    (d.projectedCursor !== undefined && d.projectedCursor > 0) ||
+    (d.projectedBedrock !== undefined && d.projectedBedrock > 0)
   );
 }

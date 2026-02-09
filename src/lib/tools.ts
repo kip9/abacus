@@ -48,6 +48,13 @@ export const TOOL_CONFIGS: Record<string, ToolConfig> = {
     text: 'text-cyan-400',
     gradient: 'from-cyan-500/80 to-cyan-400/60',
   },
+  bedrock: {
+    name: 'Claude (Bedrock)',
+    bg: 'bg-violet-500',
+    bgChart: 'bg-violet-500/80',
+    text: 'text-violet-400',
+    gradient: 'from-violet-500/80 to-violet-400/60',
+  },
   windsurf: {
     name: 'Windsurf',
     bg: 'bg-emerald-500',

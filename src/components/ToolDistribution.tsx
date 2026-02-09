@@ -35,6 +35,7 @@ interface ToolDistributionProps {
 const TOOL_HOVER_COLORS: Record<string, { bar: string; barHover: string }> = {
   claude_code: { bar: 'bg-amber-500', barHover: 'bg-amber-400' },
   cursor: { bar: 'bg-cyan-500', barHover: 'bg-cyan-400' },
+  bedrock: { bar: 'bg-violet-500', barHover: 'bg-violet-400' },
   windsurf: { bar: 'bg-emerald-500', barHover: 'bg-emerald-400' },
   github_copilot: { bar: 'bg-sky-500', barHover: 'bg-sky-400' },
   codex: { bar: 'bg-teal-500', barHover: 'bg-teal-400' },

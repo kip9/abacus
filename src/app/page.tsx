@@ -26,8 +26,10 @@ interface Stats {
   activeUsers: number;
   claudeCodeTokens: number;
   cursorTokens: number;
+  bedrockTokens: number;
   claudeCodeUsers: number;
   cursorUsers: number;
+  bedrockUsers: number;
   unattributed?: {
     totalTokens: number;
     totalCost: number;
@@ -38,8 +40,10 @@ interface Stats {
     activeUsers: number;
     claudeCodeTokens: number;
     cursorTokens: number;
+    bedrockTokens: number;
     claudeCodeUsers: number;
     cursorUsers: number;
+    bedrockUsers: number;
   };
 }
 
@@ -66,11 +70,13 @@ interface DailyUsage {
   date: string;
   claudeCode: number;
   cursor: number;
+  bedrock: number;
   cost: number;
   // Projection fields
   isIncomplete?: boolean;
   projectedClaudeCode?: number;
   projectedCursor?: number;
+  projectedBedrock?: number;
 }
 
 interface ModelData {
@@ -269,6 +275,13 @@ function DashboardContent() {
                       tokenPercentage: (stats.claudeCodeTokens / stats.totalTokens) * 100,
                       users: stats.claudeCodeUsers,
                       userPercentage: stats.activeUsers > 0 ? (stats.claudeCodeUsers / stats.activeUsers) * 100 : 0,
+                    }] : []),
+                    ...(stats.bedrockTokens > 0 || stats.bedrockUsers > 0 ? [{
+                      tool: 'bedrock',
+                      tokens: stats.bedrockTokens,
+                      tokenPercentage: (stats.bedrockTokens / stats.totalTokens) * 100,
+                      users: stats.bedrockUsers,
+                      userPercentage: stats.activeUsers > 0 ? (stats.bedrockUsers / stats.activeUsers) * 100 : 0,
                     }] : []),
                     ...(stats.cursorTokens > 0 || stats.cursorUsers > 0 ? [{
                       tool: 'cursor',

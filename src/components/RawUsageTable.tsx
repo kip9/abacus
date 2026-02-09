@@ -20,6 +20,7 @@ function formatWhen(dateStr: string): string {
 const TOOL_COLORS: Record<string, { bg: string; text: string }> = {
   claude_code: { bg: 'bg-amber-500', text: 'text-amber-400' },
   cursor: { bg: 'bg-cyan-500', text: 'text-cyan-400' },
+  bedrock: { bg: 'bg-violet-500', text: 'text-violet-400' },
   windsurf: { bg: 'bg-emerald-500', text: 'text-emerald-400' },
   github_copilot: { bg: 'bg-sky-500', text: 'text-sky-400' },
   codex: { bg: 'bg-teal-500', text: 'text-teal-400' },
@@ -34,6 +35,7 @@ function formatToolName(tool: string): string {
   const names: Record<string, string> = {
     claude_code: 'Claude Code',
     cursor: 'Cursor',
+    bedrock: 'Claude (Bedrock)',
     windsurf: 'Windsurf',
     github_copilot: 'GitHub Copilot',
     codex: 'Codex',

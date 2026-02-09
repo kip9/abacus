@@ -10,6 +10,7 @@ interface DailyUsage {
   date: string;
   claudeCode: number;
   cursor: number;
+  bedrock: number;
   cost?: number;
 }
 
@@ -29,6 +30,12 @@ const USAGE_SEGMENTS: StackedBarSegment[] = [
     label: TOOL_CONFIGS.cursor.name,
     color: TOOL_CONFIGS.cursor.bgChart,
     textColor: TOOL_CONFIGS.cursor.text,
+  },
+  {
+    key: 'bedrock',
+    label: TOOL_CONFIGS.bedrock.name,
+    color: TOOL_CONFIGS.bedrock.bgChart,
+    textColor: TOOL_CONFIGS.bedrock.text,
   },
   {
     key: 'claudeCode',
@@ -53,12 +60,14 @@ export function StackedBarChart({ data, height = 200, showLabels = true }: Stack
     values: {
       claudeCode: Number(d.claudeCode),
       cursor: Number(d.cursor),
+      bedrock: Number(d.bedrock),
     },
   }));
 
   // Calculate totals for custom legend (from original data, not aggregated)
   const claudeCodeTotal = data.reduce((sum, d) => sum + Number(d.claudeCode), 0);
   const cursorTotal = data.reduce((sum, d) => sum + Number(d.cursor), 0);
+  const bedrockTotal = data.reduce((sum, d) => sum + Number(d.bedrock), 0);
 
   // Custom legend with token formatting
   const legendContent = (
@@ -66,6 +75,11 @@ export function StackedBarChart({ data, height = 200, showLabels = true }: Stack
       <span className={`font-mono text-xs ${TOOL_CONFIGS.claude_code.text}`}>
         {TOOL_CONFIGS.claude_code.name}: {formatTokens(claudeCodeTotal)}
       </span>
+      {bedrockTotal > 0 && (
+        <span className={`font-mono text-xs ${TOOL_CONFIGS.bedrock.text}`}>
+          {TOOL_CONFIGS.bedrock.name}: {formatTokens(bedrockTotal)}
+        </span>
+      )}
       <span className={`font-mono text-xs ${TOOL_CONFIGS.cursor.text}`}>
         {TOOL_CONFIGS.cursor.name}: {formatTokens(cursorTotal)}
       </span>

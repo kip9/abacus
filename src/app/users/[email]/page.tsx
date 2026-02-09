@@ -29,6 +29,11 @@ const TOOL_COLORS: Record<string, { bg: string; text: string; gradient: string }
     text: 'text-cyan-400',
     gradient: 'from-cyan-500/80 to-cyan-400/60',
   },
+  bedrock: {
+    bg: 'bg-violet-500',
+    text: 'text-violet-400',
+    gradient: 'from-violet-500/80 to-violet-400/60',
+  },
   windsurf: {
     bg: 'bg-emerald-500',
     text: 'text-emerald-400',
@@ -59,6 +64,7 @@ function formatToolName(tool: string): string {
   const names: Record<string, string> = {
     claude_code: 'Claude Code',
     cursor: 'Cursor',
+    bedrock: 'Claude (Bedrock)',
     windsurf: 'Windsurf',
     github_copilot: 'GitHub Copilot',
     codex: 'Codex',
@@ -80,6 +86,7 @@ interface UserDetails {
     totalCost: number;
     claudeCodeTokens: number;
     cursorTokens: number;
+    bedrockTokens: number;
     lastActive: string;
     firstActive: string;
     daysActive: number;
@@ -110,6 +117,7 @@ interface UserDetails {
     date: string;
     claudeCode: number;
     cursor: number;
+    bedrock: number;
     cost: number;
   }[];
   previousPeriod?: {
@@ -467,7 +475,7 @@ function UserDetailContent() {
               const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
               const byDayOfWeek = data.dailyUsage.reduce((acc, d) => {
                 const dayIndex = new Date(d.date).getDay();
-                acc[dayIndex] = (acc[dayIndex] || 0) + Number(d.claudeCode) + Number(d.cursor);
+                acc[dayIndex] = (acc[dayIndex] || 0) + Number(d.claudeCode) + Number(d.cursor) + Number(d.bedrock);
                 return acc;
               }, {} as Record<number, number>);
 

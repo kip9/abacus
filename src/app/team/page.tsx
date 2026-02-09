@@ -24,6 +24,7 @@ interface UserPivotData {
   totalCost: number;
   claudeCodeTokens: number;
   cursorTokens: number;
+  bedrockTokens: number;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
@@ -45,6 +46,9 @@ function getToolBreakdownFromUser(user: UserPivotData): ToolSplitData[] {
   if (user.claudeCodeTokens > 0) {
     tools.push({ tool: 'claude_code', value: Number(user.claudeCodeTokens) });
   }
+  if (user.bedrockTokens > 0) {
+    tools.push({ tool: 'bedrock', value: Number(user.bedrockTokens) });
+  }
   if (user.cursorTokens > 0) {
     tools.push({ tool: 'cursor', value: Number(user.cursorTokens) });
   }
@@ -57,6 +61,7 @@ const columns: { key: ColumnKey; label: string; align: 'left' | 'right'; format?
   { key: 'totalCost', label: 'Cost', align: 'right', format: formatCurrency },
   { key: 'split', label: 'Tools', align: 'left', sortable: false },
   { key: 'claudeCodeTokens', label: 'Claude Code', align: 'right', format: formatTokens },
+  { key: 'bedrockTokens', label: 'Bedrock', align: 'right', format: formatTokens },
   { key: 'cursorTokens', label: 'Cursor', align: 'right', format: formatTokens },
   { key: 'daysActive', label: 'Days Active', align: 'right', format: (v) => v.toString() },
   { key: 'avgTokensPerDay', label: 'Avg/Day', align: 'right', format: formatTokens },
@@ -169,9 +174,10 @@ function TeamPageContent() {
       totalTokens: acc.totalTokens + Number(u.totalTokens),
       totalCost: acc.totalCost + Number(u.totalCost),
       claudeCodeTokens: acc.claudeCodeTokens + Number(u.claudeCodeTokens),
+      bedrockTokens: acc.bedrockTokens + Number(u.bedrockTokens),
       cursorTokens: acc.cursorTokens + Number(u.cursorTokens),
     }),
-    { totalTokens: 0, totalCost: 0, claudeCodeTokens: 0, cursorTokens: 0 }
+    { totalTokens: 0, totalCost: 0, claudeCodeTokens: 0, bedrockTokens: 0, cursorTokens: 0 }
   );
 
   return (
@@ -316,6 +322,8 @@ function TeamPageContent() {
                                 />
                               ) : col.key === 'claudeCodeTokens' ? (
                                 <span className="text-amber-400/80">{col.format!(user[col.key] as number)}</span>
+                              ) : col.key === 'bedrockTokens' ? (
+                                <span className="text-violet-400/80">{col.format!(user[col.key] as number)}</span>
                               ) : col.key === 'cursorTokens' ? (
                                 <span className="text-cyan-400/80">{col.format!(user[col.key] as number)}</span>
                               ) : col.format ? (

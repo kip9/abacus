@@ -35,13 +35,14 @@ export function UsageChart({ data, days }: UsageChartProps) {
 
   // Calculate totals per data point for trend line
   const totalValues = useMemo(
-    () => chartData.map(d => Number(d.claudeCode) + Number(d.cursor)),
+    () => chartData.map(d => Number(d.claudeCode) + Number(d.cursor) + Number(d.bedrock)),
     [chartData]
   );
 
   const maxValue = Math.max(...totalValues, 1);
   const claudeCodeTotal = chartData.reduce((sum, d) => sum + Number(d.claudeCode), 0);
   const cursorTotal = chartData.reduce((sum, d) => sum + Number(d.cursor), 0);
+  const bedrockTotal = chartData.reduce((sum, d) => sum + Number(d.bedrock), 0);
   // Don't show projected legend for weekly data since projections don't aggregate meaningfully
   const showProjectedLegend = !isWeekly && hasProjectedData(chartData);
 
@@ -78,6 +79,7 @@ export function UsageChart({ data, days }: UsageChartProps) {
             <InlineLegend
               items={[
                 { key: 'claude_code', label: TOOL_CONFIGS.claude_code.name, value: formatTokens(claudeCodeTotal), textColor: TOOL_CONFIGS.claude_code.text },
+                ...(bedrockTotal > 0 ? [{ key: 'bedrock', label: TOOL_CONFIGS.bedrock.name, value: formatTokens(bedrockTotal), textColor: TOOL_CONFIGS.bedrock.text }] : []),
                 { key: 'cursor', label: TOOL_CONFIGS.cursor.name, value: formatTokens(cursorTotal), textColor: TOOL_CONFIGS.cursor.text },
               ]}
             />
@@ -103,14 +105,19 @@ export function UsageChart({ data, days }: UsageChartProps) {
           // For estimated: projectedX is 0, X is the historical average (all estimated)
           const claudeTotal = Number(item.claudeCode);
           const cursorTotal = Number(item.cursor);
+          const bedrockTotal = Number(item.bedrock);
           const claudeActual = !isWeekly && item.projectedClaudeCode !== undefined ? item.projectedClaudeCode : claudeTotal;
           const cursorActual = !isWeekly && item.projectedCursor !== undefined ? item.projectedCursor : cursorTotal;
+          const bedrockActual = !isWeekly && item.projectedBedrock !== undefined ? item.projectedBedrock : bedrockTotal;
           const claudeProjectedPortion = claudeTotal - claudeActual;
           const cursorProjectedPortion = cursorTotal - cursorActual;
+          const bedrockProjectedPortion = bedrockTotal - bedrockActual;
 
           // Heights as percentages of max
           const claudeActualHeight = (claudeActual / maxValue) * 100;
           const claudeProjectedHeight = (claudeProjectedPortion / maxValue) * 100;
+          const bedrockActualHeight = (bedrockActual / maxValue) * 100;
+          const bedrockProjectedHeight = (bedrockProjectedPortion / maxValue) * 100;
           const cursorActualHeight = (cursorActual / maxValue) * 100;
           const cursorProjectedHeight = (cursorProjectedPortion / maxValue) * 100;
 
@@ -138,12 +145,33 @@ export function UsageChart({ data, days }: UsageChartProps) {
                     style={{ minHeight: '2px' }}
                   />
                 )}
+                {/* Bedrock - in middle (projected portion above actual) */}
+                {bedrockProjectedHeight > 0 && (
+                  <motion.div
+                    initial={{ height: 0 }}
+                    animate={{ height: `${bedrockProjectedHeight}%` }}
+                    transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.02, 1) }}
+                    className="w-full relative overflow-hidden bg-white/18"
+                    style={{ minHeight: '2px' }}
+                  >
+                    <div className="absolute inset-0 bg-stripes" />
+                  </motion.div>
+                )}
+                {bedrockActualHeight > 0 && (
+                  <motion.div
+                    initial={{ height: 0 }}
+                    animate={{ height: `${bedrockActualHeight}%` }}
+                    transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.025, 1) }}
+                    className={`w-full ${TOOL_CONFIGS.bedrock.bgChart}`}
+                    style={{ minHeight: '2px' }}
+                  />
+                )}
                 {/* Cursor - on bottom (projected portion above actual) */}
                 {cursorProjectedHeight > 0 && (
                   <motion.div
                     initial={{ height: 0 }}
                     animate={{ height: `${cursorProjectedHeight}%` }}
-                    transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.02, 1) }}
+                    transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.03, 1) }}
                     className="w-full relative overflow-hidden bg-white/15"
                     style={{ minHeight: '2px' }}
                   >
@@ -154,7 +182,7 @@ export function UsageChart({ data, days }: UsageChartProps) {
                   <motion.div
                     initial={{ height: 0 }}
                     animate={{ height: `${cursorActualHeight}%` }}
-                    transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.03, 1) }}
+                    transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.035, 1) }}
                     className={`w-full rounded-b ${TOOL_CONFIGS.cursor.bgChart}`}
                     style={{ minHeight: '2px' }}
                   />
@@ -178,18 +206,28 @@ export function UsageChart({ data, days }: UsageChartProps) {
                   <div className={TOOL_CONFIGS.claude_code.text}>
                     {TOOL_CONFIGS.claude_code.name}: {formatTokens(claudeActual)}
                   </div>
+                  {bedrockActual > 0 && (
+                    <div className={TOOL_CONFIGS.bedrock.text}>
+                      {TOOL_CONFIGS.bedrock.name}: {formatTokens(bedrockActual)}
+                    </div>
+                  )}
                   <div className={TOOL_CONFIGS.cursor.text}>
                     {TOOL_CONFIGS.cursor.name}: {formatTokens(cursorActual)}
                   </div>
                 </div>
 
                 {/* Projected values section - only show if there are projections */}
-                {(claudeProjectedPortion > 0 || cursorProjectedPortion > 0) && (
+                {(claudeProjectedPortion > 0 || cursorProjectedPortion > 0 || bedrockProjectedPortion > 0) && (
                   <div className="mb-1 mt-2 pt-2 border-t border-white/10">
                     <div className="text-white/40 text-xs uppercase tracking-wider mb-1">Projected</div>
                     {claudeProjectedPortion > 0 && (
                       <div className="text-white/50">
                         {TOOL_CONFIGS.claude_code.name}: +{formatTokens(claudeProjectedPortion)}
+                      </div>
+                    )}
+                    {bedrockProjectedPortion > 0 && (
+                      <div className="text-white/50">
+                        {TOOL_CONFIGS.bedrock.name}: +{formatTokens(bedrockProjectedPortion)}
                       </div>
                     )}
                     {cursorProjectedPortion > 0 && (
@@ -201,7 +239,7 @@ export function UsageChart({ data, days }: UsageChartProps) {
                 )}
 
                 {/* Estimated from average indicator */}
-                {(item.projectedClaudeCode === 0 || item.projectedCursor === 0) && (
+                {(item.projectedClaudeCode === 0 || item.projectedCursor === 0 || item.projectedBedrock === 0) && (
                   <div className="text-white/40 text-xs mt-2 pt-2 border-t border-white/10">
                     Estimated from historical average
                   </div>

@@ -6,13 +6,14 @@ describe('applyProjections', () => {
   const mockCompleteness: DataCompleteness = {
     claudeCode: { lastDataDate: '2025-01-15' },
     cursor: { lastDataDate: '2025-01-15' },
+    bedrock: { lastDataDate: '2025-01-15' },
   };
 
   it('marks data after lastDataDate as incomplete', () => {
     const data: DailyUsage[] = [
-      { date: '2025-01-14', claudeCode: 1000, cursor: 500, cost: 0.10 },
-      { date: '2025-01-15', claudeCode: 1200, cursor: 600, cost: 0.12 },
-      { date: '2025-01-16', claudeCode: 0, cursor: 0, cost: 0 },
+      { date: '2025-01-14', claudeCode: 1000, cursor: 500, bedrock: 0, cost: 0.10 },
+      { date: '2025-01-15', claudeCode: 1200, cursor: 600, bedrock: 0, cost: 0.12 },
+      { date: '2025-01-16', claudeCode: 0, cursor: 0, bedrock: 0, cost: 0 },
     ];
 
     const result = applyProjections(data, mockCompleteness, '2025-01-16');
@@ -24,8 +25,8 @@ describe('applyProjections', () => {
 
   it('returns data unchanged when complete and not today', () => {
     const data: DailyUsage[] = [
-      { date: '2025-01-14', claudeCode: 1000, cursor: 500, cost: 0.10 },
-      { date: '2025-01-15', claudeCode: 1200, cursor: 600, cost: 0.12 },
+      { date: '2025-01-14', claudeCode: 1000, cursor: 500, bedrock: 0, cost: 0.10 },
+      { date: '2025-01-15', claudeCode: 1200, cursor: 600, bedrock: 0, cost: 0.12 },
     ];
 
     // Today is after the data range, so all data is complete
@@ -39,9 +40,10 @@ describe('applyProjections', () => {
     const completeness: DataCompleteness = {
       claudeCode: { lastDataDate: '2025-01-13' },
       cursor: { lastDataDate: '2025-01-15' },
+      bedrock: { lastDataDate: null },
     };
     const data: DailyUsage[] = [
-      { date: '2025-01-14', claudeCode: 0, cursor: 500, cost: 0.05 },
+      { date: '2025-01-14', claudeCode: 0, cursor: 500, bedrock: 0, cost: 0.05 },
     ];
 
     const result = applyProjections(data, completeness, '2025-01-16');
@@ -67,9 +69,10 @@ describe('applyProjections', () => {
       const completeness: DataCompleteness = {
         claudeCode: { lastDataDate: '2025-01-15' },
         cursor: { lastDataDate: '2025-01-15' },
+        bedrock: { lastDataDate: null },
       };
       const data: DailyUsage[] = [
-        { date: '2025-01-16', claudeCode: 500, cursor: 250, cost: 0.05 },
+        { date: '2025-01-16', claudeCode: 500, cursor: 250, bedrock: 0, cost: 0.05 },
       ];
 
       const result = applyProjections(data, completeness, '2025-01-16');
@@ -86,10 +89,11 @@ describe('applyProjections', () => {
       const completeness: DataCompleteness = {
         claudeCode: { lastDataDate: '2025-01-15' },
         cursor: { lastDataDate: '2025-01-15' },
+        bedrock: { lastDataDate: null },
       };
       // Only today's data, no historical data to average from
       const data: DailyUsage[] = [
-        { date: '2025-01-16', claudeCode: 0, cursor: 0, cost: 0 },
+        { date: '2025-01-16', claudeCode: 0, cursor: 0, bedrock: 0, cost: 0 },
       ];
 
       const result = applyProjections(data, completeness, '2025-01-16');
@@ -105,12 +109,13 @@ describe('applyProjections', () => {
       const completeness: DataCompleteness = {
         claudeCode: { lastDataDate: '2025-01-15' },
         cursor: { lastDataDate: '2025-01-15' },
+        bedrock: { lastDataDate: null },
       };
       // Historical data available
       const data: DailyUsage[] = [
-        { date: '2025-01-14', claudeCode: 1000, cursor: 500, cost: 0.10 },
-        { date: '2025-01-15', claudeCode: 2000, cursor: 1000, cost: 0.20 },
-        { date: '2025-01-16', claudeCode: 0, cursor: 0, cost: 0 },  // Today, no data yet
+        { date: '2025-01-14', claudeCode: 1000, cursor: 500, bedrock: 0, cost: 0.10 },
+        { date: '2025-01-15', claudeCode: 2000, cursor: 1000, bedrock: 0, cost: 0.20 },
+        { date: '2025-01-16', claudeCode: 0, cursor: 0, bedrock: 0, cost: 0 },  // Today, no data yet
       ];
 
       const result = applyProjections(data, completeness, '2025-01-16');
@@ -126,10 +131,11 @@ describe('applyProjections', () => {
     it('projects both tools for today since day is not complete', () => {
       const completeness: DataCompleteness = {
         claudeCode: { lastDataDate: '2025-01-15' },
-        cursor: { lastDataDate: '2025-01-16' },  // Cursor has synced today but day isn't over
+        cursor: { lastDataDate: '2025-01-16' },  // Cursor has synced today but day isn't over,
+        bedrock: { lastDataDate: null },
       };
       const data: DailyUsage[] = [
-        { date: '2025-01-16', claudeCode: 500, cursor: 1000, cost: 0.10 },
+        { date: '2025-01-16', claudeCode: 500, cursor: 1000, bedrock: 0, cost: 0.10 },
       ];
 
       const result = applyProjections(data, completeness, '2025-01-16');
@@ -158,9 +164,10 @@ describe('applyProjections', () => {
       const completeness: DataCompleteness = {
         claudeCode: { lastDataDate: '2025-01-15' },
         cursor: { lastDataDate: '2025-01-15' },
+        bedrock: { lastDataDate: null },
       };
       const data: DailyUsage[] = [
-        { date: '2025-01-16', claudeCode: 100, cursor: 50, cost: 0.01 },
+        { date: '2025-01-16', claudeCode: 100, cursor: 50, bedrock: 0, cost: 0.01 },
       ];
 
       const result = applyProjections(data, completeness, '2025-01-16');
@@ -176,9 +183,10 @@ describe('applyProjections', () => {
     const completeness: DataCompleteness = {
       claudeCode: { lastDataDate: null },
       cursor: { lastDataDate: '2025-01-15' },
+      bedrock: { lastDataDate: null },
     };
     const data: DailyUsage[] = [
-      { date: '2025-01-14', claudeCode: 0, cursor: 500, cost: 0.05 },
+      { date: '2025-01-14', claudeCode: 0, cursor: 500, bedrock: 0, cost: 0.05 },
     ];
 
     const result = applyProjections(data, completeness, '2025-01-16');
@@ -195,16 +203,16 @@ describe('hasIncompleteData', () => {
 
   it('returns false when all data is complete', () => {
     const data: DailyUsage[] = [
-      { date: '2025-01-14', claudeCode: 1000, cursor: 500, cost: 0.10 },
-      { date: '2025-01-15', claudeCode: 1200, cursor: 600, cost: 0.12 },
+      { date: '2025-01-14', claudeCode: 1000, cursor: 500, bedrock: 0, cost: 0.10 },
+      { date: '2025-01-15', claudeCode: 1200, cursor: 600, bedrock: 0, cost: 0.12 },
     ];
     expect(hasIncompleteData(data)).toBe(false);
   });
 
   it('returns true when any data is incomplete', () => {
     const data: DailyUsage[] = [
-      { date: '2025-01-14', claudeCode: 1000, cursor: 500, cost: 0.10 },
-      { date: '2025-01-15', claudeCode: 1200, cursor: 600, cost: 0.12, isIncomplete: true },
+      { date: '2025-01-14', claudeCode: 1000, cursor: 500, bedrock: 0, cost: 0.10 },
+      { date: '2025-01-15', claudeCode: 1200, cursor: 600, bedrock: 0, cost: 0.12, isIncomplete: true },
     ];
     expect(hasIncompleteData(data)).toBe(true);
   });
@@ -217,21 +225,21 @@ describe('hasProjectedData', () => {
 
   it('returns false when data is incomplete but not projected', () => {
     const data: DailyUsage[] = [
-      { date: '2025-01-15', claudeCode: 0, cursor: 0, cost: 0, isIncomplete: true },
+      { date: '2025-01-15', claudeCode: 0, cursor: 0, bedrock: 0, cost: 0, isIncomplete: true },
     ];
     expect(hasProjectedData(data)).toBe(false);
   });
 
   it('returns true when any Claude Code value is projected', () => {
     const data: DailyUsage[] = [
-      { date: '2025-01-15', claudeCode: 1000, cursor: 500, cost: 0.10, isIncomplete: true, projectedClaudeCode: 500 },
+      { date: '2025-01-15', claudeCode: 1000, cursor: 500, bedrock: 0, cost: 0.10, isIncomplete: true, projectedClaudeCode: 500 },
     ];
     expect(hasProjectedData(data)).toBe(true);
   });
 
   it('returns true when any Cursor value is projected', () => {
     const data: DailyUsage[] = [
-      { date: '2025-01-15', claudeCode: 500, cursor: 1000, cost: 0.10, isIncomplete: true, projectedCursor: 500 },
+      { date: '2025-01-15', claudeCode: 500, cursor: 1000, bedrock: 0, cost: 0.10, isIncomplete: true, projectedCursor: 500 },
     ];
     expect(hasProjectedData(data)).toBe(true);
   });
@@ -244,21 +252,21 @@ describe('hasEstimatedData', () => {
 
   it('returns false when projected values are > 0 (extrapolated, not estimated)', () => {
     const data: DailyUsage[] = [
-      { date: '2025-01-15', claudeCode: 1000, cursor: 500, cost: 0.10, isIncomplete: true, projectedClaudeCode: 500 },
+      { date: '2025-01-15', claudeCode: 1000, cursor: 500, bedrock: 0, cost: 0.10, isIncomplete: true, projectedClaudeCode: 500 },
     ];
     expect(hasEstimatedData(data)).toBe(false);
   });
 
   it('returns true when projectedClaudeCode is 0 (using historical avg)', () => {
     const data: DailyUsage[] = [
-      { date: '2025-01-15', claudeCode: 1500, cursor: 500, cost: 0.15, isIncomplete: true, projectedClaudeCode: 0 },
+      { date: '2025-01-15', claudeCode: 1500, cursor: 500, bedrock: 0, cost: 0.15, isIncomplete: true, projectedClaudeCode: 0 },
     ];
     expect(hasEstimatedData(data)).toBe(true);
   });
 
   it('returns true when projectedCursor is 0 (using historical avg)', () => {
     const data: DailyUsage[] = [
-      { date: '2025-01-15', claudeCode: 500, cursor: 750, cost: 0.10, isIncomplete: true, projectedCursor: 0 },
+      { date: '2025-01-15', claudeCode: 500, cursor: 750, bedrock: 0, cost: 0.10, isIncomplete: true, projectedCursor: 0 },
     ];
     expect(hasEstimatedData(data)).toBe(true);
   });
@@ -271,21 +279,21 @@ describe('hasExtrapolatedData', () => {
 
   it('returns false when projected values are 0 (estimated, not extrapolated)', () => {
     const data: DailyUsage[] = [
-      { date: '2025-01-15', claudeCode: 1500, cursor: 750, cost: 0.15, isIncomplete: true, projectedClaudeCode: 0, projectedCursor: 0 },
+      { date: '2025-01-15', claudeCode: 1500, cursor: 750, bedrock: 0, cost: 0.15, isIncomplete: true, projectedClaudeCode: 0, projectedCursor: 0 },
     ];
     expect(hasExtrapolatedData(data)).toBe(false);
   });
 
   it('returns true when projectedClaudeCode > 0 (has actual partial data)', () => {
     const data: DailyUsage[] = [
-      { date: '2025-01-15', claudeCode: 1000, cursor: 500, cost: 0.10, isIncomplete: true, projectedClaudeCode: 500 },
+      { date: '2025-01-15', claudeCode: 1000, cursor: 500, bedrock: 0, cost: 0.10, isIncomplete: true, projectedClaudeCode: 500 },
     ];
     expect(hasExtrapolatedData(data)).toBe(true);
   });
 
   it('returns true when projectedCursor > 0 (has actual partial data)', () => {
     const data: DailyUsage[] = [
-      { date: '2025-01-15', claudeCode: 500, cursor: 1000, cost: 0.10, isIncomplete: true, projectedCursor: 500 },
+      { date: '2025-01-15', claudeCode: 500, cursor: 1000, bedrock: 0, cost: 0.10, isIncomplete: true, projectedCursor: 500 },
     ];
     expect(hasExtrapolatedData(data)).toBe(true);
   });
@@ -306,29 +314,30 @@ describe('same-day-of-week averaging', () => {
     const completeness: DataCompleteness = {
       claudeCode: { lastDataDate: '2025-01-20' },
       cursor: { lastDataDate: '2025-01-20' },
+      bedrock: { lastDataDate: null },
     };
     // 3 weeks of data with weekday/weekend variance
     // Tuesdays: Jan 7, Jan 14 have 2000 tokens
     // Other weekdays and weekends have different values
     const data: DailyUsage[] = [
       // Week 1
-      { date: '2025-01-06', claudeCode: 500, cursor: 250, cost: 0.05 },   // Mon
-      { date: '2025-01-07', claudeCode: 2000, cursor: 1000, cost: 0.20 }, // Tue
-      { date: '2025-01-08', claudeCode: 600, cursor: 300, cost: 0.06 },   // Wed
-      { date: '2025-01-09', claudeCode: 700, cursor: 350, cost: 0.07 },   // Thu
-      { date: '2025-01-10', claudeCode: 800, cursor: 400, cost: 0.08 },   // Fri
-      { date: '2025-01-11', claudeCode: 100, cursor: 50, cost: 0.01 },    // Sat
-      { date: '2025-01-12', claudeCode: 150, cursor: 75, cost: 0.015 },   // Sun
+      { date: '2025-01-06', claudeCode: 500, cursor: 250, bedrock: 0, cost: 0.05 },   // Mon
+      { date: '2025-01-07', claudeCode: 2000, cursor: 1000, bedrock: 0, cost: 0.20 }, // Tue
+      { date: '2025-01-08', claudeCode: 600, cursor: 300, bedrock: 0, cost: 0.06 },   // Wed
+      { date: '2025-01-09', claudeCode: 700, cursor: 350, bedrock: 0, cost: 0.07 },   // Thu
+      { date: '2025-01-10', claudeCode: 800, cursor: 400, bedrock: 0, cost: 0.08 },   // Fri
+      { date: '2025-01-11', claudeCode: 100, cursor: 50, bedrock: 0, cost: 0.01 },    // Sat
+      { date: '2025-01-12', claudeCode: 150, cursor: 75, bedrock: 0, cost: 0.015 },   // Sun
       // Week 2
-      { date: '2025-01-13', claudeCode: 550, cursor: 275, cost: 0.055 },  // Mon
-      { date: '2025-01-14', claudeCode: 1800, cursor: 900, cost: 0.18 },  // Tue
-      { date: '2025-01-15', claudeCode: 650, cursor: 325, cost: 0.065 },  // Wed
-      { date: '2025-01-16', claudeCode: 750, cursor: 375, cost: 0.075 },  // Thu
-      { date: '2025-01-17', claudeCode: 850, cursor: 425, cost: 0.085 },  // Fri
-      { date: '2025-01-18', claudeCode: 120, cursor: 60, cost: 0.012 },   // Sat
-      { date: '2025-01-19', claudeCode: 180, cursor: 90, cost: 0.018 },   // Sun
-      { date: '2025-01-20', claudeCode: 580, cursor: 290, cost: 0.058 },  // Mon
-      { date: '2025-01-21', claudeCode: 0, cursor: 0, cost: 0 },          // Tue - today, no data yet
+      { date: '2025-01-13', claudeCode: 550, cursor: 275, bedrock: 0, cost: 0.055 },  // Mon
+      { date: '2025-01-14', claudeCode: 1800, cursor: 900, bedrock: 0, cost: 0.18 },  // Tue
+      { date: '2025-01-15', claudeCode: 650, cursor: 325, bedrock: 0, cost: 0.065 },  // Wed
+      { date: '2025-01-16', claudeCode: 750, cursor: 375, bedrock: 0, cost: 0.075 },  // Thu
+      { date: '2025-01-17', claudeCode: 850, cursor: 425, bedrock: 0, cost: 0.085 },  // Fri
+      { date: '2025-01-18', claudeCode: 120, cursor: 60, bedrock: 0, cost: 0.012 },   // Sat
+      { date: '2025-01-19', claudeCode: 180, cursor: 90, bedrock: 0, cost: 0.018 },   // Sun
+      { date: '2025-01-20', claudeCode: 580, cursor: 290, bedrock: 0, cost: 0.058 },  // Mon
+      { date: '2025-01-21', claudeCode: 0, cursor: 0, bedrock: 0, cost: 0 },          // Tue - today, no data yet
     ];
 
     const result = applyProjections(data, completeness, '2025-01-21');
@@ -345,17 +354,18 @@ describe('same-day-of-week averaging', () => {
     const completeness: DataCompleteness = {
       claudeCode: { lastDataDate: '2025-01-20' },
       cursor: { lastDataDate: '2025-01-20' },
+      bedrock: { lastDataDate: null },
     };
     // Only 1 week of data, so only 1 Tuesday sample
     const data: DailyUsage[] = [
-      { date: '2025-01-14', claudeCode: 2000, cursor: 1000, cost: 0.20 }, // Tue
-      { date: '2025-01-15', claudeCode: 600, cursor: 300, cost: 0.06 },   // Wed
-      { date: '2025-01-16', claudeCode: 700, cursor: 350, cost: 0.07 },   // Thu
-      { date: '2025-01-17', claudeCode: 800, cursor: 400, cost: 0.08 },   // Fri
-      { date: '2025-01-18', claudeCode: 100, cursor: 50, cost: 0.01 },    // Sat
-      { date: '2025-01-19', claudeCode: 150, cursor: 75, cost: 0.015 },   // Sun
-      { date: '2025-01-20', claudeCode: 550, cursor: 275, cost: 0.055 },  // Mon
-      { date: '2025-01-21', claudeCode: 0, cursor: 0, cost: 0 },          // Tue - today
+      { date: '2025-01-14', claudeCode: 2000, cursor: 1000, bedrock: 0, cost: 0.20 }, // Tue
+      { date: '2025-01-15', claudeCode: 600, cursor: 300, bedrock: 0, cost: 0.06 },   // Wed
+      { date: '2025-01-16', claudeCode: 700, cursor: 350, bedrock: 0, cost: 0.07 },   // Thu
+      { date: '2025-01-17', claudeCode: 800, cursor: 400, bedrock: 0, cost: 0.08 },   // Fri
+      { date: '2025-01-18', claudeCode: 100, cursor: 50, bedrock: 0, cost: 0.01 },    // Sat
+      { date: '2025-01-19', claudeCode: 150, cursor: 75, bedrock: 0, cost: 0.015 },   // Sun
+      { date: '2025-01-20', claudeCode: 550, cursor: 275, bedrock: 0, cost: 0.055 },  // Mon
+      { date: '2025-01-21', claudeCode: 0, cursor: 0, bedrock: 0, cost: 0 },          // Tue - today
     ];
 
     const result = applyProjections(data, completeness, '2025-01-21');
@@ -382,10 +392,11 @@ describe('projection math verification', () => {
     const completeness: DataCompleteness = {
       claudeCode: { lastDataDate: '2025-01-16' },
       cursor: { lastDataDate: '2025-01-16' },
+      bedrock: { lastDataDate: null },
     };
     const data: DailyUsage[] = [
-      { date: '2025-01-16', claudeCode: 1000, cursor: 500, cost: 0.10 },
-      { date: '2025-01-17', claudeCode: 750, cursor: 300, cost: 0.05 },  // Today partial
+      { date: '2025-01-16', claudeCode: 1000, cursor: 500, bedrock: 0, cost: 0.10 },
+      { date: '2025-01-17', claudeCode: 750, cursor: 300, bedrock: 0, cost: 0.05 },  // Today partial
     ];
 
     const result = applyProjections(data, completeness, '2025-01-17');
@@ -403,11 +414,12 @@ describe('projection math verification', () => {
     const completeness: DataCompleteness = {
       claudeCode: { lastDataDate: '2025-01-17' },  // Today has synced
       cursor: { lastDataDate: '2025-01-17' },
+      bedrock: { lastDataDate: null },
     };
     const data: DailyUsage[] = [
-      { date: '2025-01-15', claudeCode: 1000, cursor: 500, cost: 0.10 },
-      { date: '2025-01-16', claudeCode: 2000, cursor: 1000, cost: 0.20 },
-      { date: '2025-01-17', claudeCode: 600, cursor: 300, cost: 0.05 },  // Today - should NOT be in average
+      { date: '2025-01-15', claudeCode: 1000, cursor: 500, bedrock: 0, cost: 0.10 },
+      { date: '2025-01-16', claudeCode: 2000, cursor: 1000, bedrock: 0, cost: 0.20 },
+      { date: '2025-01-17', claudeCode: 600, cursor: 300, bedrock: 0, cost: 0.05 },  // Today - should NOT be in average
     ];
 
     const result = applyProjections(data, completeness, '2025-01-17');
@@ -422,13 +434,14 @@ describe('projection math verification', () => {
     const completeness: DataCompleteness = {
       claudeCode: { lastDataDate: '2025-01-14' },  // 3 days behind
       cursor: { lastDataDate: '2025-01-16' },
+      bedrock: { lastDataDate: null },
     };
     const data: DailyUsage[] = [
-      { date: '2025-01-13', claudeCode: 1000, cursor: 500, cost: 0.10 },
-      { date: '2025-01-14', claudeCode: 2000, cursor: 1000, cost: 0.20 },
-      { date: '2025-01-15', claudeCode: 0, cursor: 800, cost: 0.08 },   // CC incomplete, Cursor complete
-      { date: '2025-01-16', claudeCode: 0, cursor: 600, cost: 0.06 },   // CC incomplete, Cursor complete
-      { date: '2025-01-17', claudeCode: 0, cursor: 0, cost: 0 },        // Today - both incomplete
+      { date: '2025-01-13', claudeCode: 1000, cursor: 500, bedrock: 0, cost: 0.10 },
+      { date: '2025-01-14', claudeCode: 2000, cursor: 1000, bedrock: 0, cost: 0.20 },
+      { date: '2025-01-15', claudeCode: 0, cursor: 800, bedrock: 0, cost: 0.08 },   // CC incomplete, Cursor complete
+      { date: '2025-01-16', claudeCode: 0, cursor: 600, bedrock: 0, cost: 0.06 },   // CC incomplete, Cursor complete
+      { date: '2025-01-17', claudeCode: 0, cursor: 0, bedrock: 0, cost: 0 },        // Today - both incomplete
     ];
 
     const result = applyProjections(data, completeness, '2025-01-17');
@@ -457,12 +470,13 @@ describe('projection math verification', () => {
   it('handles mixed scenario: one tool has data, other does not', () => {
     const completeness: DataCompleteness = {
       claudeCode: { lastDataDate: '2025-01-15' },  // 2 days behind
-      cursor: { lastDataDate: '2025-01-17' },      // Synced today
+      cursor: { lastDataDate: '2025-01-17' },      // Synced today,
+      bedrock: { lastDataDate: null },
     };
     const data: DailyUsage[] = [
-      { date: '2025-01-15', claudeCode: 2000, cursor: 1000, cost: 0.20 },
-      { date: '2025-01-16', claudeCode: 0, cursor: 1200, cost: 0.12 },    // CC missing, Cursor complete
-      { date: '2025-01-17', claudeCode: 0, cursor: 450, cost: 0.05 },     // Today: CC from avg, Cursor partial
+      { date: '2025-01-15', claudeCode: 2000, cursor: 1000, bedrock: 0, cost: 0.20 },
+      { date: '2025-01-16', claudeCode: 0, cursor: 1200, bedrock: 0, cost: 0.12 },    // CC missing, Cursor complete
+      { date: '2025-01-17', claudeCode: 0, cursor: 450, bedrock: 0, cost: 0.05 },     // Today: CC from avg, Cursor partial
     ];
 
     const result = applyProjections(data, completeness, '2025-01-17');

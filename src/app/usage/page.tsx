@@ -57,8 +57,10 @@ interface Stats {
   activeUsers: number;
   claudeCodeTokens: number;
   cursorTokens: number;
+  bedrockTokens: number;
   claudeCodeUsers: number;
   cursorUsers: number;
+  bedrockUsers: number;
   previousPeriod?: {
     totalTokens: number;
     totalCost: number;
@@ -232,7 +234,7 @@ function UsagePageContent() {
 
   // Calculate totals for trend line
   const toolTotalValues = useMemo(
-    () => toolDataFinal.map(d => Number(d.claudeCode) + Number(d.cursor)),
+    () => toolDataFinal.map(d => Number(d.claudeCode) + Number(d.cursor) + Number(d.bedrock)),
     [toolDataFinal]
   );
 
@@ -299,17 +301,19 @@ function UsagePageContent() {
     if (!toolTrends.length) return [];
 
     // Group by date, get users per tool
-    const dateMap = new Map<string, { claudeCode: number; cursor: number }>();
+    const dateMap = new Map<string, { claudeCode: number; cursor: number; bedrock: number }>();
 
     for (const item of toolTrends) {
       if (!dateMap.has(item.date)) {
-        dateMap.set(item.date, { claudeCode: 0, cursor: 0 });
+        dateMap.set(item.date, { claudeCode: 0, cursor: 0, bedrock: 0 });
       }
       const dayData = dateMap.get(item.date)!;
       if (item.tool === 'claude_code') {
         dayData.claudeCode = Number(item.users);
       } else if (item.tool === 'cursor') {
         dayData.cursor = Number(item.users);
+      } else if (item.tool === 'bedrock') {
+        dayData.bedrock = Number(item.users);
       }
     }
 
@@ -329,7 +333,7 @@ function UsagePageContent() {
   // Max value for user chart
   const maxUserValue = useMemo(() => {
     if (!toolUserDataFinal.length) return 1;
-    return Math.max(...toolUserDataFinal.map(d => d.claudeCode + d.cursor), 1);
+    return Math.max(...toolUserDataFinal.map(d => d.claudeCode + d.cursor + d.bedrock), 1);
   }, [toolUserDataFinal]);
 
   // Determine label frequency
@@ -460,6 +464,7 @@ function UsagePageContent() {
                       <InlineLegend
                         items={[
                           { key: 'claude_code', label: TOOL_CONFIGS.claude_code.name, value: formatTokens(toolDataFinal.reduce((s, d) => s + Number(d.claudeCode), 0)), textColor: TOOL_CONFIGS.claude_code.text },
+                          ...(toolDataFinal.some(d => Number(d.bedrock) > 0) ? [{ key: 'bedrock', label: TOOL_CONFIGS.bedrock.name, value: formatTokens(toolDataFinal.reduce((s, d) => s + Number(d.bedrock), 0)), textColor: TOOL_CONFIGS.bedrock.text }] : []),
                           { key: 'cursor', label: TOOL_CONFIGS.cursor.name, value: formatTokens(toolDataFinal.reduce((s, d) => s + Number(d.cursor), 0)), textColor: TOOL_CONFIGS.cursor.text },
                         ]}
                       />
@@ -515,14 +520,19 @@ function UsagePageContent() {
                         // Skip projections for weekly data since aggregation doesn't preserve them meaningfully
                         const claudeTotal = Number(item.claudeCode);
                         const cursorTotal = Number(item.cursor);
+                        const bedrockTotal = Number(item.bedrock);
                         const claudeActual = !isWeekly && item.projectedClaudeCode !== undefined ? item.projectedClaudeCode : claudeTotal;
                         const cursorActual = !isWeekly && item.projectedCursor !== undefined ? item.projectedCursor : cursorTotal;
+                        const bedrockActual = !isWeekly && item.projectedBedrock !== undefined ? item.projectedBedrock : bedrockTotal;
                         const claudeProjectedPortion = claudeTotal - claudeActual;
                         const cursorProjectedPortion = cursorTotal - cursorActual;
+                        const bedrockProjectedPortion = bedrockTotal - bedrockActual;
 
                         // Heights as percentages of max
                         const claudeActualHeight = (claudeActual / maxToolValue) * 100;
                         const claudeProjectedHeight = (claudeProjectedPortion / maxToolValue) * 100;
+                        const bedrockActualHeight = (bedrockActual / maxToolValue) * 100;
+                        const bedrockProjectedHeight = (bedrockProjectedPortion / maxToolValue) * 100;
                         const cursorActualHeight = (cursorActual / maxToolValue) * 100;
                         const cursorProjectedHeight = (cursorProjectedPortion / maxToolValue) * 100;
 
@@ -550,12 +560,33 @@ function UsagePageContent() {
                                   style={{ minHeight: '2px' }}
                                 />
                               )}
+                              {/* Bedrock - in middle (projected portion above actual) */}
+                              {bedrockProjectedHeight > 0 && (
+                                <motion.div
+                                  initial={{ height: 0 }}
+                                  animate={{ height: `${bedrockProjectedHeight}%` }}
+                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.02, 1) }}
+                                  className="w-full relative overflow-hidden bg-white/18"
+                                  style={{ minHeight: '2px' }}
+                                >
+                                  <div className="absolute inset-0 bg-stripes" />
+                                </motion.div>
+                              )}
+                              {bedrockActualHeight > 0 && (
+                                <motion.div
+                                  initial={{ height: 0 }}
+                                  animate={{ height: `${bedrockActualHeight}%` }}
+                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.025, 1) }}
+                                  className={`w-full ${TOOL_CONFIGS.bedrock.bgChart}`}
+                                  style={{ minHeight: '2px' }}
+                                />
+                              )}
                               {/* Cursor - on bottom (projected portion above actual) */}
                               {cursorProjectedHeight > 0 && (
                                 <motion.div
                                   initial={{ height: 0 }}
                                   animate={{ height: `${cursorProjectedHeight}%` }}
-                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.02, 1) }}
+                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.03, 1) }}
                                   className="w-full relative overflow-hidden bg-white/15"
                                   style={{ minHeight: '2px' }}
                                 >
@@ -566,7 +597,7 @@ function UsagePageContent() {
                                 <motion.div
                                   initial={{ height: 0 }}
                                   animate={{ height: `${cursorActualHeight}%` }}
-                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.03, 1) }}
+                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.035, 1) }}
                                   className={`w-full rounded-b ${TOOL_CONFIGS.cursor.bgChart}`}
                                   style={{ minHeight: '2px' }}
                                 />
@@ -588,18 +619,28 @@ function UsagePageContent() {
                                 <div className={TOOL_CONFIGS.claude_code.text}>
                                   {TOOL_CONFIGS.claude_code.name}: {formatTokens(claudeActual)}
                                 </div>
+                                {bedrockActual > 0 && (
+                                  <div className={TOOL_CONFIGS.bedrock.text}>
+                                    {TOOL_CONFIGS.bedrock.name}: {formatTokens(bedrockActual)}
+                                  </div>
+                                )}
                                 <div className={TOOL_CONFIGS.cursor.text}>
                                   {TOOL_CONFIGS.cursor.name}: {formatTokens(cursorActual)}
                                 </div>
                               </div>
 
                               {/* Projected values section - only show if there are projections */}
-                              {(claudeProjectedPortion > 0 || cursorProjectedPortion > 0) && (
+                              {(claudeProjectedPortion > 0 || cursorProjectedPortion > 0 || bedrockProjectedPortion > 0) && (
                                 <div className="mb-1 mt-2 pt-2 border-t border-white/10">
                                   <div className="text-white/40 text-xs uppercase tracking-wider mb-1">Projected</div>
                                   {claudeProjectedPortion > 0 && (
                                     <div className="text-white/50">
                                       {TOOL_CONFIGS.claude_code.name}: +{formatTokens(claudeProjectedPortion)}
+                                    </div>
+                                  )}
+                                  {bedrockProjectedPortion > 0 && (
+                                    <div className="text-white/50">
+                                      {TOOL_CONFIGS.bedrock.name}: +{formatTokens(bedrockProjectedPortion)}
                                     </div>
                                   )}
                                   {cursorProjectedPortion > 0 && (
@@ -611,7 +652,7 @@ function UsagePageContent() {
                               )}
 
                               {/* Estimated from average indicator */}
-                              {(item.projectedClaudeCode === 0 || item.projectedCursor === 0) && (
+                              {(item.projectedClaudeCode === 0 || item.projectedCursor === 0 || item.projectedBedrock === 0) && (
                                 <div className="text-white/40 text-xs mt-2 pt-2 border-t border-white/10">
                                   Estimated from historical average
                                 </div>
@@ -773,8 +814,12 @@ function UsagePageContent() {
                         const cursorCost = toolTrends
                           .filter(t => t.tool === 'cursor')
                           .reduce((sum, t) => sum + Number(t.cost), 0);
+                        const bedrockCost = toolTrends
+                          .filter(t => t.tool === 'bedrock')
+                          .reduce((sum, t) => sum + Number(t.cost), 0);
                         const claudePct = stats.totalTokens > 0 ? Math.round((stats.claudeCodeTokens / stats.totalTokens) * 100) : 0;
                         const cursorPct = stats.totalTokens > 0 ? Math.round((stats.cursorTokens / stats.totalTokens) * 100) : 0;
+                        const bedrockPct = stats.totalTokens > 0 ? Math.round((stats.bedrockTokens / stats.totalTokens) * 100) : 0;
                         return (
                           <>
                             <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
@@ -801,6 +846,32 @@ function UsagePageContent() {
                                 </div>
                               </td>
                             </tr>
+                            {stats.bedrockTokens > 0 && (
+                              <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                                <td className="px-6 py-3">
+                                  <span className={`font-mono text-sm ${TOOL_CONFIGS.bedrock.text}`}>Claude (Bedrock)</span>
+                                </td>
+                                <td className="px-6 py-3 text-right">
+                                  <span className="font-mono text-sm text-white/70">{formatTokens(stats.bedrockTokens)}</span>
+                                </td>
+                                <td className="px-6 py-3 text-right">
+                                  <span className="font-mono text-sm text-white/70">{formatCurrency(bedrockCost)}</span>
+                                </td>
+                                <td className="px-6 py-3 text-right">
+                                  <span className="font-mono text-sm text-white/50">{bedrockPct}%</span>
+                                </td>
+                                <td className="px-6 py-3">
+                                  <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                                    <motion.div
+                                      initial={{ width: 0 }}
+                                      animate={{ width: `${bedrockPct}%` }}
+                                      transition={{ duration: 0.6, delay: 0.025 }}
+                                      className={`h-full rounded-full ${TOOL_CONFIGS.bedrock.bg}`}
+                                    />
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
                             <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
                               <td className="px-6 py-3">
                                 <span className={`font-mono text-sm ${TOOL_CONFIGS.cursor.text}`}>Cursor</span>
@@ -850,6 +921,14 @@ function UsagePageContent() {
                         Claude Code: {stats.claudeCodeUsers} users
                       </span>
                     </div>
+                    {stats.bedrockUsers > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <div className={`w-2 h-2 rounded-sm ${TOOL_CONFIGS.bedrock.bg}`} />
+                        <span className={`font-mono text-xs ${TOOL_CONFIGS.bedrock.text}`}>
+                          Claude (Bedrock): {stats.bedrockUsers} users
+                        </span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-1.5">
                       <div className={`w-2 h-2 rounded-sm ${TOOL_CONFIGS.cursor.bg}`} />
                       <span className={`font-mono text-xs ${TOOL_CONFIGS.cursor.text}`}>
@@ -862,6 +941,7 @@ function UsagePageContent() {
                     <div className="flex items-end gap-0.5 h-full">
                       {toolUserDataFinal.map((item, i) => {
                         const claudeHeight = maxUserValue > 0 ? (item.claudeCode / maxUserValue) * 100 : 0;
+                        const bedrockHeight = maxUserValue > 0 ? (item.bedrock / maxUserValue) * 100 : 0;
                         const cursorHeight = maxUserValue > 0 ? (item.cursor / maxUserValue) * 100 : 0;
                         const userLabelEvery = Math.max(1, Math.ceil(toolUserDataFinal.length / maxLabels));
 
@@ -874,6 +954,15 @@ function UsagePageContent() {
                                   animate={{ height: `${claudeHeight}%` }}
                                   transition={{ duration: 0.6, delay: Math.min(i * 0.02, 1) }}
                                   className={`w-full rounded-t ${TOOL_CONFIGS.claude_code.bgChart}`}
+                                  style={{ minHeight: '2px' }}
+                                />
+                              )}
+                              {bedrockHeight > 0 && (
+                                <motion.div
+                                  initial={{ height: 0 }}
+                                  animate={{ height: `${bedrockHeight}%` }}
+                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.01, 1) }}
+                                  className={`w-full ${TOOL_CONFIGS.bedrock.bgChart}`}
                                   style={{ minHeight: '2px' }}
                                 />
                               )}
@@ -897,6 +986,9 @@ function UsagePageContent() {
                             <TooltipContent>
                               <div className="text-white/60 mb-1">{formatDate(item.date)}</div>
                               <div className={TOOL_CONFIGS.claude_code.text}>Claude Code: {item.claudeCode} users</div>
+                              {item.bedrock > 0 && (
+                                <div className={TOOL_CONFIGS.bedrock.text}>Claude (Bedrock): {item.bedrock} users</div>
+                              )}
                               <div className={TOOL_CONFIGS.cursor.text}>Cursor: {item.cursor} users</div>
                             </TooltipContent>
                           </div>
@@ -950,6 +1042,31 @@ function UsagePageContent() {
                                 animate={{ width: `${stats.activeUsers > 0 ? (stats.claudeCodeUsers / stats.activeUsers) * 100 : 0}%` }}
                                 transition={{ duration: 0.6 }}
                                 className={`h-full rounded-full ${TOOL_CONFIGS.claude_code.bg}`}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {stats.bedrockUsers > 0 && (
+                        <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                          <td className="px-6 py-3">
+                            <span className={`font-mono text-sm ${TOOL_CONFIGS.bedrock.text}`}>Claude (Bedrock)</span>
+                          </td>
+                          <td className="px-6 py-3 text-right">
+                            <span className="font-mono text-sm text-white">{stats.bedrockUsers}</span>
+                          </td>
+                          <td className="px-6 py-3 text-right">
+                            <span className="font-mono text-sm text-white/70">
+                              {formatTokens(Math.round(stats.bedrockTokens / stats.bedrockUsers))}
+                            </span>
+                          </td>
+                          <td className="px-6 py-3">
+                            <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${stats.activeUsers > 0 ? (stats.bedrockUsers / stats.activeUsers) * 100 : 0}%` }}
+                                transition={{ duration: 0.6, delay: 0.025 }}
+                                className={`h-full rounded-full ${TOOL_CONFIGS.bedrock.bg}`}
                               />
                             </div>
                           </td>
