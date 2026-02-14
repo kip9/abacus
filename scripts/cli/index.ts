@@ -33,7 +33,7 @@ import { cmdDbMigrate } from './db';
 import { cmdStats } from './stats';
 import { cmdAnthropicStatus } from './anthropic';
 import { cmdCursorStatus, cmdImportCursorCsv } from './cursor';
-import { cmdBedrockStatus, cmdImportBedrockCsv, cmdImportBedrockExport, cmdBedrockUsers, cmdBedrockUsersMap, cmdBedrockSync } from './bedrock';
+import { cmdBedrockStatus, cmdImportBedrockCsv, cmdImportBedrockExport, cmdBedrockUsers, cmdBedrockUsersMap, cmdBedrockSync, cmdBedrockRecalculateCosts } from './bedrock';
 import { cmdGitHubStatus, cmdGitHubSync, cmdGitHubCommits, cmdGitHubUsers, cmdGitHubUsersMap, cmdGitHubUsersSync, cmdGitHubCleanupMerges } from './github';
 import { cmdMappings, cmdMappingsSync, cmdMappingsFix } from './mappings';
 import { cmdSync, cmdBackfill, cmdGitHubBackfill, cmdBackfillComplete, cmdBackfillReset, cmdGaps } from './sync';
@@ -89,6 +89,8 @@ Commands:
   bedrock:users         List IAM users and their email mappings
   bedrock:users:map <iam> <email>
                         Map an IAM user to an email address
+  bedrock:recalculate-costs [--days N] [--from DATE]
+                        Recalculate costs for Bedrock records using current pricing
   fix:duplicates [--execute]
                         Fix duplicate usage records (dry-run by default)
   stats                 Show database statistics
@@ -299,6 +301,14 @@ async function main() {
         const iamUser = args[1];
         const email = args[2];
         await cmdBedrockUsersMap(iamUser, email);
+        break;
+      }
+      case 'bedrock:recalculate-costs': {
+        const daysIdx = args.indexOf('--days');
+        const days = daysIdx >= 0 ? parseInt(args[daysIdx + 1]) : undefined;
+        const fromIdx = args.indexOf('--from');
+        const from = fromIdx >= 0 ? args[fromIdx + 1] : undefined;
+        await cmdBedrockRecalculateCosts({ days, from });
         break;
       }
       case 'fix:duplicates': {

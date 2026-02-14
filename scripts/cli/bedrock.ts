@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { getBedrockSyncState, parseBedrockCsv } from '../../src/lib/sync/bedrock';
+import { getBedrockSyncState, parseBedrockCsv, recalculateBedrockCosts } from '../../src/lib/sync/bedrock';
 import { parseBedrockExport } from '../../src/lib/sync/bedrock-export';
 import { importBedrockLogEntries } from '../../src/lib/sync/bedrock-import';
 import { syncBedrockFromCloudWatch } from '../../src/lib/sync/bedrock-cloudwatch';
@@ -236,4 +236,37 @@ export async function cmdBedrockSync(options: {
     }
     throw err;
   }
+}
+
+/**
+ * Recalculate costs for existing Bedrock records using current pricing.
+ */
+export async function cmdBedrockRecalculateCosts(options: {
+  days?: number;
+  from?: string;
+}) {
+  // Determine start date
+  let startDate: string;
+  if (options.from) {
+    startDate = options.from;
+  } else {
+    const days = options.days ?? 30;
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    startDate = d.toISOString().split('T')[0];
+  }
+
+  console.log('Bedrock Cost Recalculation');
+  console.log(`  From: ${startDate}`);
+  console.log('');
+
+  const result = await recalculateBedrockCosts(startDate, {
+    onProgress: (msg) => console.log(msg),
+  });
+
+  console.log('');
+  console.log('Done!');
+  console.log(`  Total records: ${result.total}`);
+  console.log(`  Updated: ${result.updated}`);
+  console.log(`  Unchanged: ${result.unchanged}`);
 }

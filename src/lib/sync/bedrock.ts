@@ -1,5 +1,5 @@
 import Papa from 'papaparse';
-import { db, syncState } from '../db';
+import { db, query, syncState } from '../db';
 import { eq } from 'drizzle-orm';
 import { normalizeModelName } from '../utils';
 
@@ -66,18 +66,20 @@ export interface SyncResult {
  * Bedrock pricing per million tokens (USD).
  * Based on AWS Bedrock pricing for Anthropic models.
  */
-const BEDROCK_PRICING: Record<string, { input: number; output: number; cacheRead: number; cacheWrite: number }> = {
+export const BEDROCK_PRICING: Record<string, { input: number; output: number; cacheRead: number; cacheWrite: number }> = {
   'haiku-3': { input: 0.25, output: 1.25, cacheRead: 0.03, cacheWrite: 0.30 },
   'haiku-3.5': { input: 0.80, output: 4.00, cacheRead: 0.08, cacheWrite: 1.00 },
   'haiku-4.5': { input: 1.00, output: 5.00, cacheRead: 0.10, cacheWrite: 1.25 },
   'sonnet-3.5': { input: 3.00, output: 15.00, cacheRead: 0.30, cacheWrite: 3.75 },
   'sonnet-4': { input: 3.00, output: 15.00, cacheRead: 0.30, cacheWrite: 3.75 },
-  'opus-4': { input: 15.00, output: 75.00, cacheRead: 1.50, cacheWrite: 18.75 },
-  'opus-4.5': { input: 15.00, output: 75.00, cacheRead: 1.50, cacheWrite: 18.75 },
+  'opus-4': { input: 5.50, output: 27.50, cacheRead: 0.55, cacheWrite: 11.00 },
+  'opus-4.5': { input: 5.50, output: 27.50, cacheRead: 0.55, cacheWrite: 11.00 },
+  'opus-4.6': { input: 5.50, output: 27.50, cacheRead: 0.55, cacheWrite: 11.00 },
+  'opus-4.6-v1': { input: 5.50, output: 27.50, cacheRead: 0.55, cacheWrite: 11.00 },
 };
 
 // Default pricing for unknown models (use Sonnet pricing as default)
-const DEFAULT_PRICING = { input: 3.00, output: 15.00, cacheRead: 0.30, cacheWrite: 3.75 };
+export const DEFAULT_PRICING = { input: 3.00, output: 15.00, cacheRead: 0.30, cacheWrite: 3.75 };
 
 // ============================================================================
 // Sync State
@@ -401,4 +403,93 @@ export function parseBedrockCsv(csvContent: string): BedrockLogEntry[] {
     }
   }
   return entries;
+}
+
+// ============================================================================
+// Cost Recalculation
+// ============================================================================
+
+interface RecalculateResult {
+  total: number;
+  updated: number;
+  unchanged: number;
+}
+
+interface BedrockRecordRow {
+  id: number;
+  model: string;
+  input_tokens: number;
+  cache_write_tokens: number;
+  cache_read_tokens: number;
+  output_tokens: number;
+  cost: string;
+}
+
+const COST_TOLERANCE = 0.000001;
+const BATCH_SIZE = 100;
+
+/**
+ * Recalculate costs for all Bedrock usage records since the given start date.
+ * Uses the current BEDROCK_PRICING table to recompute each record's cost,
+ * then batch-updates any records whose cost has changed.
+ */
+export async function recalculateBedrockCosts(
+  startDate: string,
+  callbacks?: { onProgress?: (msg: string) => void }
+): Promise<RecalculateResult> {
+  const log = callbacks?.onProgress ?? (() => {});
+
+  log(`Fetching bedrock records since ${startDate}...`);
+
+  const { rows } = await query<BedrockRecordRow>(
+    `SELECT id, model, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens, cost
+     FROM usage_records
+     WHERE tool = 'bedrock' AND date >= $1`,
+    [startDate]
+  );
+
+  log(`Found ${rows.length} records to process`);
+
+  const updates: { id: number; cost: number }[] = [];
+
+  for (const row of rows) {
+    const newCost = calculateBedrockCost(row.model, {
+      inputTokens: row.input_tokens,
+      outputTokens: row.output_tokens,
+      cacheReadTokens: row.cache_read_tokens,
+      cacheWriteTokens: row.cache_write_tokens,
+    });
+
+    const oldCost = parseFloat(row.cost);
+    if (Math.abs(newCost - oldCost) > COST_TOLERANCE) {
+      updates.push({ id: row.id, cost: newCost });
+    }
+  }
+
+  log(`${updates.length} records need cost updates, ${rows.length - updates.length} unchanged`);
+
+  // Batch update in groups
+  for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+    const batch = updates.slice(i, i + BATCH_SIZE);
+
+    // Build a VALUES list for batch update: (id, cost) pairs
+    const values = batch.map((u, idx) => `($${idx * 2 + 1}::int, $${idx * 2 + 2}::numeric)`).join(', ');
+    const params = batch.flatMap((u) => [u.id, u.cost]);
+
+    await query(
+      `UPDATE usage_records
+       SET cost = v.cost
+       FROM (VALUES ${values}) AS v(id, cost)
+       WHERE usage_records.id = v.id`,
+      params
+    );
+
+    log(`  Updated batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(updates.length / BATCH_SIZE)}`);
+  }
+
+  return {
+    total: rows.length,
+    updated: updates.length,
+    unchanged: rows.length - updates.length,
+  };
 }
