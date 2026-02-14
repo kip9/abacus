@@ -55,6 +55,19 @@ For local development only:
 
 See [GitHub Commits setup](/abacus/providers/github-commits/) for details.
 
+### Claude (Bedrock)
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `AWS_BEDROCK_LOG_GROUP` | Yes | CloudWatch log group name (e.g., `/aws/bedrock/invocation-logs`) |
+| `AWS_BEDROCK_EXPORT_BUCKET` | Yes | S3 bucket for CloudWatch export tasks |
+| `AWS_BEDROCK_EXPORT_PREFIX` | No | S3 key prefix for exports (default: `abacus-export`) |
+| `AWS_ACCESS_KEY_ID` | * | AWS access key (or use shared config / IAM role) |
+| `AWS_SECRET_ACCESS_KEY` | * | AWS secret key (or use shared config / IAM role) |
+| `AWS_REGION` | No | AWS region (default: SDK default) |
+
+\* AWS credentials are resolved via the standard SDK credential chain: environment variables, shared config (`~/.aws/credentials`), or IAM instance role.
+
 ## Optional Variables
 
 | Variable | Description |

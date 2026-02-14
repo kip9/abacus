@@ -1,7 +1,9 @@
 import * as fs from 'fs';
-import { getBedrockSyncState, parseBedrockLogEntry, parseBedrockCsv } from '../../src/lib/sync/bedrock';
+import { getBedrockSyncState, parseBedrockCsv } from '../../src/lib/sync/bedrock';
 import { parseBedrockExport } from '../../src/lib/sync/bedrock-export';
-import { insertUsageRecord, getIdentityMapping, setIdentityMapping, getIdentityMappings } from '../../src/lib/queries';
+import { importBedrockLogEntries } from '../../src/lib/sync/bedrock-import';
+import { syncBedrockFromCloudWatch } from '../../src/lib/sync/bedrock-cloudwatch';
+import { setIdentityMapping, getIdentityMappings } from '../../src/lib/queries';
 
 export async function cmdBedrockStatus() {
   console.log('Bedrock Sync Status\n');
@@ -19,6 +21,38 @@ export async function cmdBedrockStatus() {
   // Show mapped users
   const mappings = await getIdentityMappings('bedrock');
   console.log(`\nMapped IAM users: ${mappings.length}`);
+}
+
+/** CLI callbacks for displaying import progress inline. */
+function cliImportCallbacks() {
+  return {
+    onProgress: (msg: string) => console.error(`\n${msg}`),
+    onRecordProcessed: (char: string) => process.stdout.write(char),
+    onDateChange: (date: string, isFirst: boolean) => {
+      if (!isFirst) {
+        process.stdout.write('\n');
+      }
+      process.stdout.write(`  ${date}: `);
+    },
+  };
+}
+
+/** Print the summary after an import completes. */
+function printImportSummary(result: { imported: number; skipped: number; unmapped: number; errors: number; unmappedUsers: string[] }) {
+  console.log(`\n\nImport complete!`);
+  console.log(`  Imported: ${result.imported}`);
+  console.log(`  Skipped (duplicates/empty): ${result.skipped}`);
+  console.log(`  Unmapped users: ${result.unmapped}`);
+  console.log(`  Errors: ${result.errors}`);
+
+  if (result.unmappedUsers.length > 0) {
+    console.log(`\nUnmapped IAM users found:`);
+    for (const user of result.unmappedUsers) {
+      console.log(`  - ${user}`);
+    }
+    console.log(`\nMap users with: pnpm cli bedrock:users:map <iam-user> <email>`);
+    console.log(`Then re-import to attribute records.`);
+  }
 }
 
 /**
@@ -41,88 +75,8 @@ export async function cmdImportBedrockCsv(filePath: string) {
 
   console.log(`Total rows: ${logEntries.length}\n`);
 
-  let imported = 0;
-  let skipped = 0;
-  let unmapped = 0;
-  let errors = 0;
-  let lastDate = '';
-  const unmappedUsers = new Set<string>();
-
-  for (const logEntry of logEntries) {
-    try {
-      // Parse into usage record
-      const record = parseBedrockLogEntry(logEntry);
-
-      // Skip records with no tokens
-      const totalTokens = record.inputTokens + record.outputTokens + record.cacheReadTokens + record.cacheWriteTokens;
-      if (totalTokens === 0) {
-        skipped++;
-        continue;
-      }
-
-      // Look up email mapping
-      const email = await getIdentityMapping('bedrock', record.iamUser);
-      if (!email) {
-        unmapped++;
-        unmappedUsers.add(record.iamUser);
-        continue;
-      }
-
-      const date = record.timestamp.toISOString().split('T')[0];
-
-      if (date !== lastDate) {
-        if (lastDate) {
-          process.stdout.write('\n');
-        }
-        process.stdout.write(`  ${date}: `);
-        lastDate = date;
-      }
-
-      await insertUsageRecord({
-        date,
-        email,
-        tool: 'bedrock',
-        model: record.model,
-        rawModel: record.rawModel,
-        inputTokens: record.inputTokens,
-        cacheWriteTokens: record.cacheWriteTokens,
-        cacheReadTokens: record.cacheReadTokens,
-        outputTokens: record.outputTokens,
-        cost: record.cost,
-        toolRecordId: record.requestId,
-        timestampMs: record.timestamp.getTime(),
-      });
-
-      imported++;
-      process.stdout.write('.');
-    } catch (err) {
-      if (err instanceof Error && err.message.includes('duplicate')) {
-        skipped++;
-        process.stdout.write('s');
-      } else {
-        errors++;
-        process.stdout.write('E');
-        if (errors <= 5) {
-          console.error(`\nError on entry:`, err);
-        }
-      }
-    }
-  }
-
-  console.log(`\n\nImport complete!`);
-  console.log(`  Imported: ${imported}`);
-  console.log(`  Skipped (duplicates/empty): ${skipped}`);
-  console.log(`  Unmapped users: ${unmapped}`);
-  console.log(`  Errors: ${errors}`);
-
-  if (unmappedUsers.size > 0) {
-    console.log(`\nUnmapped IAM users found:`);
-    for (const user of unmappedUsers) {
-      console.log(`  - ${user}`);
-    }
-    console.log(`\nMap users with: pnpm cli bedrock:users:map <iam-user> <email>`);
-    console.log(`Then re-import to attribute records.`);
-  }
+  const result = await importBedrockLogEntries(logEntries, cliImportCallbacks());
+  printImportSummary(result);
 }
 
 /**
@@ -131,7 +85,6 @@ export async function cmdImportBedrockCsv(filePath: string) {
 export async function cmdBedrockUsers() {
   console.log('Bedrock IAM User Mappings\n');
 
-  // Get existing mappings
   const mappings = await getIdentityMappings('bedrock');
 
   if (mappings.length === 0) {
@@ -189,86 +142,98 @@ export async function cmdImportBedrockExport(filePath: string) {
 
   console.log(`Total rows: ${logEntries.length}\n`);
 
-  let imported = 0;
-  let skipped = 0;
-  let unmapped = 0;
-  let errors = 0;
-  let lastDate = '';
-  const unmappedUsers = new Set<string>();
+  const result = await importBedrockLogEntries(logEntries, cliImportCallbacks());
+  printImportSummary(result);
+}
 
-  for (const logEntry of logEntries) {
-    try {
-      // Parse into usage record
-      const record = parseBedrockLogEntry(logEntry);
-
-      // Skip records with no tokens
-      const totalTokens = record.inputTokens + record.outputTokens + record.cacheReadTokens + record.cacheWriteTokens;
-      if (totalTokens === 0) {
-        skipped++;
-        continue;
-      }
-
-      // Look up email mapping
-      const email = await getIdentityMapping('bedrock', record.iamUser);
-      if (!email) {
-        unmapped++;
-        unmappedUsers.add(record.iamUser);
-        continue;
-      }
-
-      const date = record.timestamp.toISOString().split('T')[0];
-
-      if (date !== lastDate) {
-        if (lastDate) {
-          process.stdout.write('\n');
-        }
-        process.stdout.write(`  ${date}: `);
-        lastDate = date;
-      }
-
-      await insertUsageRecord({
-        date,
-        email,
-        tool: 'bedrock',
-        model: record.model,
-        rawModel: record.rawModel,
-        inputTokens: record.inputTokens,
-        cacheWriteTokens: record.cacheWriteTokens,
-        cacheReadTokens: record.cacheReadTokens,
-        outputTokens: record.outputTokens,
-        cost: record.cost,
-        toolRecordId: record.requestId,
-        timestampMs: record.timestamp.getTime(),
-      });
-
-      imported++;
-      process.stdout.write('.');
-    } catch (err) {
-      if (err instanceof Error && err.message.includes('duplicate')) {
-        skipped++;
-        process.stdout.write('s');
-      } else {
-        errors++;
-        process.stdout.write('E');
-        if (errors <= 5) {
-          console.error(`\nError on entry:`, err);
-        }
-      }
-    }
+/**
+ * Sync Bedrock usage from CloudWatch via automated export.
+ *
+ * Creates a CloudWatch Logs export task, waits for completion,
+ * downloads the exported files from S3, and imports them.
+ */
+export async function cmdBedrockSync(options: {
+  days?: number;
+  from?: string;
+  to?: string;
+  skipCleanup?: boolean;
+}) {
+  // Validate required env vars
+  if (!process.env.AWS_BEDROCK_LOG_GROUP) {
+    console.error('Error: AWS_BEDROCK_LOG_GROUP environment variable is required');
+    console.error('Set it to your CloudWatch log group (e.g., /aws/bedrock/invocation-logs)');
+    return;
+  }
+  if (!process.env.AWS_BEDROCK_EXPORT_BUCKET) {
+    console.error('Error: AWS_BEDROCK_EXPORT_BUCKET environment variable is required');
+    console.error('Set it to your S3 bucket for exports');
+    return;
   }
 
-  console.log(`\n\nImport complete!`);
-  console.log(`  Imported: ${imported}`);
-  console.log(`  Skipped (duplicates/empty): ${skipped}`);
-  console.log(`  Unmapped users: ${unmapped}`);
-  console.log(`  Errors: ${errors}`);
+  // Determine time range
+  const now = Date.now();
+  let startTime: number;
+  let endTime: number;
 
-  if (unmappedUsers.size > 0) {
-    console.log(`\nUnmapped IAM users found:`);
-    for (const user of unmappedUsers) {
-      console.log(`  - ${user}`);
+  if (options.from) {
+    startTime = new Date(options.from).getTime();
+    endTime = options.to ? new Date(options.to).getTime() : now;
+  } else if (options.days) {
+    startTime = now - options.days * 24 * 60 * 60 * 1000;
+    endTime = now;
+  } else {
+    // Use last sync timestamp, or default to 7 days ago
+    const { lastSyncedTimestamp } = await getBedrockSyncState();
+    startTime = lastSyncedTimestamp ?? now - 7 * 24 * 60 * 60 * 1000;
+    endTime = now;
+  }
+
+  console.log('Bedrock CloudWatch Sync');
+  console.log(`  Log group: ${process.env.AWS_BEDROCK_LOG_GROUP}`);
+  console.log(`  S3 bucket: ${process.env.AWS_BEDROCK_EXPORT_BUCKET}`);
+  console.log(`  Range: ${new Date(startTime).toISOString()} → ${new Date(endTime).toISOString()}`);
+  console.log('');
+
+  try {
+    const result = await syncBedrockFromCloudWatch({
+      logGroupName: process.env.AWS_BEDROCK_LOG_GROUP,
+      bucket: process.env.AWS_BEDROCK_EXPORT_BUCKET,
+      prefix: process.env.AWS_BEDROCK_EXPORT_PREFIX || 'abacus-export',
+      startTime,
+      endTime,
+      skipCleanup: options.skipCleanup,
+      onProgress: (msg) => console.log(msg),
+    });
+
+    console.log('\nSync complete!');
+    console.log(`  Files processed: ${result.filesProcessed}`);
+    console.log(`  Records imported: ${result.importResult.imported}`);
+    console.log(`  Records skipped: ${result.importResult.skipped}`);
+    console.log(`  Unmapped users: ${result.importResult.unmapped}`);
+    console.log(`  Errors: ${result.importResult.errors}`);
+
+    if (result.importResult.unmappedUsers.length > 0) {
+      console.log(`\nUnmapped IAM users:`);
+      for (const user of result.importResult.unmappedUsers) {
+        console.log(`  - ${user}`);
+      }
+      console.log(`\nMap users with: pnpm cli bedrock:users:map <iam-user> <email>`);
     }
-    console.log(`\nMap users with: pnpm cli bedrock:users:map <iam-user> <email>`);
-    console.log(`Then re-import to attribute records.`);
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('CredentialsProviderError')) {
+      console.error('Error: AWS credentials not found');
+      console.error('Configure credentials via:');
+      console.error('  - AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY env vars');
+      console.error('  - AWS shared config (~/.aws/credentials)');
+      console.error('  - IAM instance role');
+      return;
+    }
+    if (err instanceof Error && err.message.includes('LimitExceededException')) {
+      console.error('Error: An export task is already running for this account');
+      console.error('AWS allows only one active export task at a time.');
+      console.error('Wait for it to complete or cancel it in the AWS Console.');
+      return;
+    }
+    throw err;
   }
 }

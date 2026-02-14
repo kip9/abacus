@@ -38,6 +38,13 @@ import {
   BedrockUsageRecord,
   SyncResult as BedrockResult,
 } from './bedrock';
+import { importBedrockLogEntries, ImportResult as BedrockImportResult } from './bedrock-import';
+import {
+  syncBedrockFromCloudWatch,
+  checkExportTaskStatus,
+  createCloudWatchExportTask,
+  BedrockCloudWatchSyncResult,
+} from './bedrock-cloudwatch';
 import { sql } from '../db';
 
 export interface FullSyncResult {
@@ -173,7 +180,7 @@ export {
   getGitHubUser,
 };
 
-export type { GitHubResult, GitHubPushEvent, GitHubMappingResult, BedrockResult, BedrockLogEntry, BedrockUsageRecord };
+export type { GitHubResult, GitHubPushEvent, GitHubMappingResult, BedrockResult, BedrockLogEntry, BedrockUsageRecord, BedrockImportResult, BedrockCloudWatchSyncResult };
 
 // Bedrock exports
 export {
@@ -185,4 +192,10 @@ export {
   calculateBedrockCost,
   parseBedrockLogEntry,
   parseCsvMessage,
+  // Bedrock import
+  importBedrockLogEntries,
+  // Bedrock CloudWatch sync
+  syncBedrockFromCloudWatch,
+  checkExportTaskStatus,
+  createCloudWatchExportTask,
 };

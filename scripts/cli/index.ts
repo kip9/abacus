@@ -33,7 +33,7 @@ import { cmdDbMigrate } from './db';
 import { cmdStats } from './stats';
 import { cmdAnthropicStatus } from './anthropic';
 import { cmdCursorStatus, cmdImportCursorCsv } from './cursor';
-import { cmdBedrockStatus, cmdImportBedrockCsv, cmdImportBedrockExport, cmdBedrockUsers, cmdBedrockUsersMap } from './bedrock';
+import { cmdBedrockStatus, cmdImportBedrockCsv, cmdImportBedrockExport, cmdBedrockUsers, cmdBedrockUsersMap, cmdBedrockSync } from './bedrock';
 import { cmdGitHubStatus, cmdGitHubSync, cmdGitHubCommits, cmdGitHubUsers, cmdGitHubUsersMap, cmdGitHubUsersSync, cmdGitHubCleanupMerges } from './github';
 import { cmdMappings, cmdMappingsSync, cmdMappingsFix } from './mappings';
 import { cmdSync, cmdBackfill, cmdGitHubBackfill, cmdBackfillComplete, cmdBackfillReset, cmdGaps } from './sync';
@@ -83,6 +83,8 @@ Commands:
                         Import Bedrock usage from CloudWatch CSV export
   import:bedrock-export <file>
                         Import Bedrock usage from CloudWatch export (timestamp + JSON format)
+  bedrock:sync [--days N] [--from DATE] [--to DATE] [--skip-cleanup]
+                        Sync Bedrock usage from CloudWatch (automated export + import)
   bedrock:status        Show Bedrock sync state
   bedrock:users         List IAM users and their email mappings
   bedrock:users:map <iam> <email>
@@ -274,6 +276,17 @@ async function main() {
           break;
         }
         await cmdImportBedrockExport(filePath);
+        break;
+      }
+      case 'bedrock:sync': {
+        const daysIdx = args.indexOf('--days');
+        const days = daysIdx >= 0 ? parseInt(args[daysIdx + 1]) : undefined;
+        const fromIdx = args.indexOf('--from');
+        const toIdx = args.indexOf('--to');
+        const from = fromIdx >= 0 ? args[fromIdx + 1] : undefined;
+        const to = toIdx >= 0 ? args[toIdx + 1] : undefined;
+        const skipCleanup = args.includes('--skip-cleanup');
+        await cmdBedrockSync({ days, from, to, skipCleanup });
         break;
       }
       case 'bedrock:status':
